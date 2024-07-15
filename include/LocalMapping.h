@@ -121,6 +121,7 @@ protected:
 
     bool mbAcceptKeyFrames;
     std::mutex mMutexAccept;
+
 };
 
 } //namespace ORB_SLAM

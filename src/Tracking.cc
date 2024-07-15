@@ -46,7 +46,7 @@ namespace ORB_SLAM2
 Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer, Map *pMap, KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor):
     mState(NO_IMAGES_YET), mSensor(sensor), mbOnlyTracking(false), mbVO(false), mpORBVocabulary(pVoc),
     mpKeyFrameDB(pKFDB), mpInitializer(static_cast<Initializer*>(NULL)), mpSystem(pSys), mpViewer(NULL),
-    mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer), mpMap(pMap), mnLastRelocFrameId(0)
+    mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer), mpMap(pMap), mnLastRelocFrameId(0), mSettingPath(strSettingPath)
 {
     // Load camera parameters from settings file
 
@@ -577,7 +577,7 @@ void Tracking::MonocularInitialization()
             if(mpInitializer)
                 delete mpInitializer;
 
-            mpInitializer =  new Initializer(mCurrentFrame,1.0,200);
+            mpInitializer =  new Initializer(mCurrentFrame,1.0,200,mSettingPath);
 
             fill(mvIniMatches.begin(),mvIniMatches.end(),-1);
 
@@ -611,8 +611,17 @@ void Tracking::MonocularInitialization()
         cv::Mat tcw; // Current Camera Translation
         vector<bool> vbTriangulated; // Triangulated Correspondences (mvIniMatches)
 
-        if(mpInitializer->Initialize(mCurrentFrame, mvIniMatches, Rcw, tcw, mvIniP3D, vbTriangulated))
+        // My revise 准备把可能的地面点和三角化标志合并判断 mvbGround
+        std::vector<bool> vbProbableGround;
+
+        if(mpInitializer->Initialize(mCurrentFrame, mvIniMatches, Rcw, tcw, mvIniP3D, vbTriangulated,      mInitGroundNormal, vbProbableGround))
         {
+            // My revise 增加mvbGround的判断
+            mvbGround.resize(mvIniMatches.size());
+            int ground_point_num = 0;
+
+
+
             for(size_t i=0, iend=mvIniMatches.size(); i<iend;i++)
             {
                 if(mvIniMatches[i]>=0 && !vbTriangulated[i])
@@ -620,7 +629,46 @@ void Tracking::MonocularInitialization()
                     mvIniMatches[i]=-1;
                     nmatches--;
                 }
+                // My revise 增加mvbGround的判断  vbTriangulated[i] && 
+                if(vbTriangulated[i] && vbProbableGround[i])
+                {
+                    mvbGround[i] = true;
+                    cout << " " << mvIniP3D[i] << ";" << endl;
+                    ground_point_num ++;
+                }
             }
+
+            //cout << "Initial_GroundNormal_1: " << mInitGroundNormal << endl;
+
+        
+            // My revise 拟合平面
+            cv::Mat A(ground_point_num, 3, CV_32F);
+            for (int i = 0, k = 0; i < ground_point_num; k++) {
+                if(vbTriangulated[k] && vbProbableGround[k]) {
+                    A.at<float>(i, 0) = mvIniP3D[k].x;
+                    A.at<float>(i, 1) = mvIniP3D[k].y;
+                    A.at<float>(i, 2) = mvIniP3D[k].z;
+                    i ++;
+                }
+            }
+            //cout << "Initial_Pointnums: " << ground_point_num << endl;
+            cv::Mat U,w,Vt,V;
+            //cv::SVD::compute(A,w,U,Vt,cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
+            cv::SVD svd(A, cv::SVD::FULL_UV);
+            U = svd.u.colRange(0, 3);
+            Vt = svd.vt;
+            cv::Mat S_inv = cv::Mat::diag(1.0 / svd.w);
+            cv::Mat b(ground_point_num, 1, CV_32F, cv::Scalar(-1.0f));
+            V=Vt.t();
+            //cout << "V = " << V << endl;
+            //cout << "S_inv = " << S_inv << endl;
+            //cout << "U = " << U << endl;
+            //cout << "b = " << b << endl;
+            cv::Mat Ground_n = V * S_inv * U.t() * b;
+            mInitGroundNormal = Ground_n;
+            cout << "Initial_GroundNormal_2: " << mInitGroundNormal << endl;
+        
+
 
             // Set Frame Poses
             mInitialFrame.SetPose(cv::Mat::eye(4,4,CV_32F));
@@ -630,6 +678,7 @@ void Tracking::MonocularInitialization()
             mCurrentFrame.SetPose(Tcw);
 
             CreateInitialMapMonocular();
+
         }
     }
 }
@@ -659,6 +708,16 @@ void Tracking::CreateInitialMapMonocular()
 
         MapPoint* pMP = new MapPoint(worldPos,pKFcur,mpMap);
 
+        // My revise 为地图点增加新特性
+        if(mvbGround[i])
+        {
+            pMP->mbGround = true;
+            
+            //cout << "Ground Point: " << pMP->GetWorldPos() << endl;
+            // My revise 添加地面点
+            mpMap->mspGroundPoints.insert(pMP);
+        }
+
         pKFini->AddMapPoint(pMP,i);
         pKFcur->AddMapPoint(pMP,mvIniMatches[i]);
 
@@ -674,7 +733,11 @@ void Tracking::CreateInitialMapMonocular()
 
         //Add to Map
         mpMap->AddMapPoint(pMP);
+
     }
+    //My revise 为地图创建地平面
+    mpMap->mvGroundPlaneNormal = mInitGroundNormal.clone();
+    cout << "New Map created with GroundPlane (" << mInitGroundNormal.at<float>(0) << ", "<< mInitGroundNormal.at<float>(1) <<", " << mInitGroundNormal.at<float>(2) << ")" << endl;
 
     // Update Connections
     pKFini->UpdateConnections();
@@ -689,7 +752,7 @@ void Tracking::CreateInitialMapMonocular()
     float medianDepth = pKFini->ComputeSceneMedianDepth(2);
     float invMedianDepth = 1.0f/medianDepth;
 
-    if(medianDepth<0 || pKFcur->TrackedMapPoints(1)<100)
+    if(medianDepth<0 || pKFcur->TrackedMapPoints(1)<70) // My Revise from <100
     {
         cout << "Wrong initialization, reseting..." << endl;
         Reset();
@@ -709,8 +772,15 @@ void Tracking::CreateInitialMapMonocular()
         {
             MapPoint* pMP = vpAllMapPoints[iMP];
             pMP->SetWorldPos(pMP->GetWorldPos()*invMedianDepth);
+
+            // My revise 显示地面点坐标
+            //if(pMP->mbGround)
+                //cout << "Ground Point: " << pMP->GetWorldPos() << endl;
         }
     }
+    // My revise 地平面归一化
+    cout << "medianDepth = " << medianDepth << ";"<< endl;
+    mpMap->mvGroundPlaneNormal = mpMap->mvGroundPlaneNormal * medianDepth;
 
     mpLocalMapper->InsertKeyFrame(pKFini);
     mpLocalMapper->InsertKeyFrame(pKFcur);
@@ -1488,6 +1558,10 @@ bool Tracking::Relocalization()
             }
         }
     }
+
+    // My revise 其他人的commit 修复内存泄露
+    for ( auto pSolver : vpPnPsolvers )
+        delete pSolver;
 
     if(!bMatch)
     {

@@ -30,7 +30,7 @@
 namespace ORB_SLAM2
 {
 
-Initializer::Initializer(const Frame &ReferenceFrame, float sigma, int iterations)
+Initializer::Initializer(const Frame &ReferenceFrame, float sigma, int iterations, const string &strSettingPath)
 {
     mK = ReferenceFrame.mK.clone();
 
@@ -39,10 +39,25 @@ Initializer::Initializer(const Frame &ReferenceFrame, float sigma, int iteration
     mSigma = sigma;
     mSigma2 = sigma*sigma;
     mMaxIterations = iterations;
+
+
+    // My revise 改变得分占比
+    // cv::FileStorage fSettings("/root/catkin_ws/src/orbslam-ros/launch/Redmi_logger.yaml", cv::FileStorage::READ);
+    cv::FileStorage fSettings(strSettingPath, cv::FileStorage::READ);
+    mRH_threshold = fSettings["Homography.RH"];
+    mImageWidth = fSettings["Camera.width"];
+    mImageHeight = fSettings["Camera.height"];
+    if(mImageWidth<1 || mImageHeight<1)
+    {   
+        //默认值
+        mImageWidth = 640;
+        mImageHeight = 480;
+    }
+
 }
 
 bool Initializer::Initialize(const Frame &CurrentFrame, const vector<int> &vMatches12, cv::Mat &R21, cv::Mat &t21,
-                             vector<cv::Point3f> &vP3D, vector<bool> &vbTriangulated)
+                             vector<cv::Point3f> &vP3D, vector<bool> &vbTriangulated,       cv::Mat &n1,  vector<bool> &vbProbableGround)
 {
     // Fill structures with current keypoints and matches with reference frame
     // Reference Frame: 1, Current Frame: 2
@@ -55,8 +70,20 @@ bool Initializer::Initialize(const Frame &CurrentFrame, const vector<int> &vMatc
     {
         if(vMatches12[i]>=0)
         {
+            // my revise 添加点的位置限制
+            cv::Point2f P1 = mvKeys1[i].pt;
+            cv::Point2f P2 = mvKeys2[vMatches12[i]].pt;
+            float k = mImageHeight / (2 * mImageWidth);
+            float b = mImageHeight / 2;
+            bool bP1 = (P1.y > k * P1.x) && (P1.y > b - k * P1.x);
+            bool bP2 = (P2.y > k * P2.x) && (P2.y > b - k * P2.x);
+            if(bP1 && bP2) {
             mvMatches12.push_back(make_pair(i,vMatches12[i]));
             mvbMatched1[i]=true;
+            }
+            else {
+                mvbMatched1[i]=false;
+            }
         }
         else
             mvbMatched1[i]=false;
@@ -111,11 +138,24 @@ bool Initializer::Initialize(const Frame &CurrentFrame, const vector<int> &vMatc
     // Compute ratio of scores
     float RH = SH/(SH+SF);
 
+    
+    cout << "Current RH: " << RH << endl;
+
     // Try to reconstruct from homography or fundamental depending on the ratio (0.40-0.45)
-    if(RH>0.40)
-        return ReconstructH(vbMatchesInliersH,H,mK,R21,t21,vP3D,vbTriangulated,1.0,50);
+    if(RH > mRH_threshold)
+    {
+        //return ReconstructH(vbMatchesInliersH,H,mK,R21,t21,vP3D,vbTriangulated,1.0,50);
+        // My revise
+        vbProbableGround = vbMatchesInliersH;
+        return ReconstructH(vbMatchesInliersH,H,mK,R21,t21,n1,vP3D,vbTriangulated,1.0,50);  // 三角化成功50个点
+    }
     else //if(pF_HF>0.6)
-        return ReconstructF(vbMatchesInliersF,F,mK,R21,t21,vP3D,vbTriangulated,1.0,50);
+    {
+        //return ReconstructF(vbMatchesInliersF,F,mK,R21,t21,vP3D,vbTriangulated,1.0,50);
+        std::cout << "F is better than H." << std::endl;
+        return false;
+    }
+        
 
     return false;
 }
@@ -175,7 +215,8 @@ void Initializer::FindHomography(vector<bool> &vbMatchesInliers, float &score, c
 void Initializer::FindFundamental(vector<bool> &vbMatchesInliers, float &score, cv::Mat &F21)
 {
     // Number of putative matches
-    const int N = vbMatchesInliers.size();
+    // const int N = vbMatchesInliers.size();  // !源代码出错！请使用下面代替
+    const int N = mvMatches12.size();
 
     // Normalize coordinates
     vector<cv::Point2f> vPn1, vPn2;
@@ -570,7 +611,7 @@ bool Initializer::ReconstructF(vector<bool> &vbMatchesInliers, cv::Mat &F21, cv:
 }
 
 bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv::Mat &K,
-                      cv::Mat &R21, cv::Mat &t21, vector<cv::Point3f> &vP3D, vector<bool> &vbTriangulated, float minParallax, int minTriangulated)
+                      cv::Mat &R21, cv::Mat &t21, cv::Mat &n1, vector<cv::Point3f> &vP3D, vector<bool> &vbTriangulated, float minParallax, int minTriangulated)
 {
     int N=0;
     for(size_t i=0, iend = vbMatchesInliers.size() ; i<iend; i++)
@@ -615,7 +656,7 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
 
     float ctheta = (d2*d2+d1*d3)/((d1+d3)*d2);
     float stheta[] = {aux_stheta, -aux_stheta, -aux_stheta, aux_stheta};
-
+ 
     for(int i=0; i<4; i++)
     {
         cv::Mat Rp=cv::Mat::eye(3,3,CV_32F);
@@ -634,7 +675,9 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
         tp*=d1-d3;
 
         cv::Mat t = U*tp;
-        vt.push_back(t/cv::norm(t));
+        // My revise 不要归一化
+        //vt.push_back(t/cv::norm(t));
+        vt.push_back(t);
 
         cv::Mat np(3,1,CV_32F);
         np.at<float>(0)=x1[i];
@@ -642,8 +685,11 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
         np.at<float>(2)=x3[i];
 
         cv::Mat n = V*np;
-        if(n.at<float>(2)<0)
-            n=-n;
+        // My revise 法向量平面转为我需要的平面参数
+        n /= (s*d2);
+        n = -n;
+        // if(n.at<float>(2)<0)
+        //     n=-n;
         vn.push_back(n);
     }
 
@@ -672,7 +718,9 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
         tp*=d1+d3;
 
         cv::Mat t = U*tp;
-        vt.push_back(t/cv::norm(t));
+        // My revise 不要归一化
+        // vt.push_back(t/cv::norm(t));
+        vt.push_back(t);
 
         cv::Mat np(3,1,CV_32F);
         np.at<float>(0)=x1[i];
@@ -680,8 +728,11 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
         np.at<float>(2)=x3[i];
 
         cv::Mat n = V*np;
-        if(n.at<float>(2)<0)
-            n=-n;
+        // My revise
+        n /= (-s*d2); // d'=-d2
+        n = -n;
+        // if(n.at<float>(2)<0)
+        //     n=-n;
         vn.push_back(n);
     }
 
@@ -722,6 +773,10 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
     {
         vR[bestSolutionIdx].copyTo(R21);
         vt[bestSolutionIdx].copyTo(t21);
+
+        //  My revise: 添加返回值
+        vn[bestSolutionIdx].copyTo(n1);
+
         vP3D = bestP3D;
         vbTriangulated = bestTriangulated;
 

@@ -28,6 +28,9 @@
 #include <mutex>
 
 
+// My revise
+#include <unordered_set>
+
 
 namespace ORB_SLAM2
 {
@@ -60,6 +63,13 @@ public:
     void clear();
 
     vector<KeyFrame*> mvpKeyFrameOrigins;
+
+    // My revise 地平面法向量 Ax+Bx+Cy+1=0 (A,B,C)
+    cv::Mat mvGroundPlaneNormal;
+    // My revise 地面点判断阈值
+    float mGroundThres;
+    // My revise 地面点指针存储器
+    std::unordered_set<MapPoint*> mspGroundPoints;
 
     std::mutex mMutexMapUpdate;
 

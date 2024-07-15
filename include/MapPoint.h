@@ -28,6 +28,9 @@
 #include<opencv2/core/core.hpp>
 #include<mutex>
 
+
+
+
 namespace ORB_SLAM2
 {
 
@@ -93,6 +96,16 @@ public:
     float mTrackProjY;
     float mTrackProjXR;
     bool mbTrackInView;
+
+
+    // My revise 是否地面点
+    bool mbGround;
+    bool UpdateGroundState(const cv::Mat &GroundNormal, const float &GroundThres);
+
+    
+
+
+
     int mnTrackScaleLevel;
     float mTrackViewCos;
     long unsigned int mnTrackReferenceForFrame;
@@ -148,5 +161,23 @@ protected:
 };
 
 } //namespace ORB_SLAM
+
+
+/*
+namespace std 
+{
+    template <>
+    struct hash<ORB_SLAM2::MapPoint*> {
+        size_t operator()(const ORB_SLAM2::MapPoint* obj) const {
+            // 将指针转换为8字节的整数
+            size_t int_ptr = reinterpret_cast<size_t>(obj);
+            // 使用标准库提供的哈希函数计算哈希值
+            return std::hash<size_t>()(int_ptr);
+        }
+    };
+}*/
+
+
+
 
 #endif // MAPPOINT_H

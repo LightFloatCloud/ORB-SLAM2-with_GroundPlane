@@ -53,6 +53,8 @@ private:
     float mPointSize;
     float mCameraSize;
     float mCameraLineWidth;
+    // My revise
+    float mGroundPointSize;
 
     cv::Mat mCameraPose;
 

@@ -35,12 +35,12 @@ class Initializer
 public:
 
     // Fix the reference frame
-    Initializer(const Frame &ReferenceFrame, float sigma = 1.0, int iterations = 200);
+    Initializer(const Frame &ReferenceFrame, float sigma = 1.0, int iterations = 200, const string &strSettingPath = "/root/catkin_ws/src/orbslam-ros/launch/Redmi_logger.yaml");
 
     // Computes in parallel a fundamental matrix and a homography
     // Selects a model and tries to recover the motion and the structure from motion
     bool Initialize(const Frame &CurrentFrame, const vector<int> &vMatches12,
-                    cv::Mat &R21, cv::Mat &t21, vector<cv::Point3f> &vP3D, vector<bool> &vbTriangulated);
+                    cv::Mat &R21, cv::Mat &t21, vector<cv::Point3f> &vP3D, vector<bool> &vbTriangulated        , cv::Mat &n1,  vector<bool> &vbProbableGround);
 
 
 private:
@@ -59,7 +59,7 @@ private:
                       cv::Mat &R21, cv::Mat &t21, vector<cv::Point3f> &vP3D, vector<bool> &vbTriangulated, float minParallax, int minTriangulated);
 
     bool ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv::Mat &K,
-                      cv::Mat &R21, cv::Mat &t21, vector<cv::Point3f> &vP3D, vector<bool> &vbTriangulated, float minParallax, int minTriangulated);
+                      cv::Mat &R21, cv::Mat &t21, cv::Mat &n1, vector<cv::Point3f> &vP3D, vector<bool> &vbTriangulated, float minParallax, int minTriangulated);
 
     void Triangulate(const cv::KeyPoint &kp1, const cv::KeyPoint &kp2, const cv::Mat &P1, const cv::Mat &P2, cv::Mat &x3D);
 
@@ -93,6 +93,11 @@ private:
 
     // Ransac sets
     vector<vector<size_t> > mvSets;   
+
+
+    // My revise 添加参数
+    float mRH_threshold;
+    float mImageWidth, mImageHeight;
 
 };
 

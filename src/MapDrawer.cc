@@ -39,6 +39,9 @@ MapDrawer::MapDrawer(Map* pMap, const string &strSettingPath):mpMap(pMap)
     mCameraSize = fSettings["Viewer.CameraSize"];
     mCameraLineWidth = fSettings["Viewer.CameraLineWidth"];
 
+    // My revise
+    mGroundPointSize = fSettings["Viewer.GroundPointSize"];
+
 }
 
 void MapDrawer::DrawMapPoints()
@@ -57,7 +60,7 @@ void MapDrawer::DrawMapPoints()
 
     for(size_t i=0, iend=vpMPs.size(); i<iend;i++)
     {
-        if(vpMPs[i]->isBad() || spRefMPs.count(vpMPs[i]))
+        if(vpMPs[i]->isBad() || spRefMPs.count(vpMPs[i]) || vpMPs[i]->mbGround)  // 地面判断，不画地面点
             continue;
         cv::Mat pos = vpMPs[i]->GetWorldPos();
         glVertex3f(pos.at<float>(0),pos.at<float>(1),pos.at<float>(2));
@@ -70,14 +73,32 @@ void MapDrawer::DrawMapPoints()
 
     for(set<MapPoint*>::iterator sit=spRefMPs.begin(), send=spRefMPs.end(); sit!=send; sit++)
     {
-        if((*sit)->isBad())
+        if((*sit)->isBad() || (*sit)->mbGround)  // 地面判断，不画地面点
             continue;
         cv::Mat pos = (*sit)->GetWorldPos();
         glVertex3f(pos.at<float>(0),pos.at<float>(1),pos.at<float>(2));
 
     }
-
+    
     glEnd();
+
+    // 画地面点
+
+    glPointSize(mGroundPointSize);
+    glBegin(GL_POINTS);
+    glColor3f(0.0,0.635,1.0);
+
+    for(size_t i=0, iend=vpMPs.size(); i<iend;i++)
+    {
+        if(vpMPs[i]->isBad() || vpMPs[i]->mbGround == false)  // 地面判断，不画地面点
+            continue;
+        cv::Mat pos = vpMPs[i]->GetWorldPos();
+        glVertex3f(pos.at<float>(0),pos.at<float>(1),pos.at<float>(2));
+    }
+    glEnd();
+
+    // 画完了
+
 }
 
 void MapDrawer::DrawKeyFrames(const bool bDrawKF, const bool bDrawGraph)

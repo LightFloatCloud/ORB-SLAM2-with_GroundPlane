@@ -25,8 +25,11 @@
 namespace ORB_SLAM2
 {
 
-Map::Map():mnMaxKFid(0),mnBigChangeIdx(0)
+Map::Map():mnMaxKFid(0),mnBigChangeIdx(0),mvGroundPlaneNormal(3,1,CV_32F)
 {
+    cv::FileStorage fSettings("/root/catkin_ws/src/orbslam-ros/launch/Redmi_logger.yaml", cv::FileStorage::READ);
+    mGroundThres = fSettings["Map.Ground_threshold"];
+
 }
 
 void Map::AddKeyFrame(KeyFrame *pKF)
@@ -50,6 +53,9 @@ void Map::EraseMapPoint(MapPoint *pMP)
 
     // TODO: This only erase the pointer.
     // Delete the MapPoint
+    
+    // My revise 删除地面点
+    mspGroundPoints.erase(pMP);
 }
 
 void Map::EraseKeyFrame(KeyFrame *pKF)
@@ -59,6 +65,7 @@ void Map::EraseKeyFrame(KeyFrame *pKF)
 
     // TODO: This only erase the pointer.
     // Delete the MapPoint
+
 }
 
 void Map::SetReferenceMapPoints(const vector<MapPoint *> &vpMPs)

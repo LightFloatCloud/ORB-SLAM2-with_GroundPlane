@@ -774,7 +774,61 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
         g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(pMP->mnId+maxKFid+1));
         pMP->SetWorldPos(Converter::toCvMat(vPoint->estimate()));
         pMP->UpdateNormalAndDepth();
+
+
+        // My revise 判断是否平面点
+        pMP->UpdateGroundState(pMap->mvGroundPlaneNormal, pMap->mGroundThres);
+
+
     }
+    // My revise
+    // 检查是否外部请求停止
+    if(pbStopFlag)
+        if(*pbStopFlag)
+            bDoMore = false;
+
+    std::cout << "-- Now GP nums: " << pMap->mspGroundPoints.size() << std::endl;
+    // 如果有外部请求停止,那么就不在进行第二阶段的优化
+    if(bDoMore)
+    {
+        vector<MapPoint*> vpGroundPoints;
+        for(list<MapPoint*>::iterator lit=lLocalMapPoints.begin(), lend=lLocalMapPoints.end(); lit!=lend; lit++)
+        {
+            MapPoint* pMP = *lit;
+
+            if(pMP->mbGround) {
+                vpGroundPoints.push_back(pMP);
+            }
+
+            
+
+        }
+        int n = vpGroundPoints.size();
+        
+        if(n > 4)
+        {
+            cv::Mat b = -cv::Mat::ones(n, 1, CV_32F);;
+            cv::Mat A(n,3,CV_32F);
+            for (int i = 0; i < n; ++i) {
+                cv::Mat pos = vpGroundPoints[i]->GetWorldPos();
+                A.at<float>(i, 0) = pos.at<float>(0,0); // x坐标
+                A.at<float>(i, 1) = pos.at<float>(1,0); // y坐标
+                A.at<float>(i, 2) = pos.at<float>(2,0); // z坐标
+            }
+
+            // 解最小二乘问题
+            cv::Mat x; // 最小二乘解
+            cv::solve(A, b, x, cv::DECOMP_NORMAL); // 使用 DECOMP_NORMAL 分解方法
+            
+            pMap->mvGroundPlaneNormal = x;
+        }
+        
+
+    }
+
+
+
+
 }
 
 

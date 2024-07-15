@@ -41,7 +41,7 @@ cv::Mat FrameDrawer::DrawFrame()
     vector<cv::KeyPoint> vIniKeys; // Initialization: KeyPoints in reference frame
     vector<int> vMatches; // Initialization: correspondeces with reference keypoints
     vector<cv::KeyPoint> vCurrentKeys; // KeyPoints in current frame
-    vector<bool> vbVO, vbMap; // Tracked MapPoints in current frame
+    vector<bool> vbVO, vbMap, vbGround; // Tracked MapPoints in current frame  // My revise 添加变量
     int state; // Tracking state
 
     //Copy variables within scoped mutex
@@ -64,6 +64,7 @@ cv::Mat FrameDrawer::DrawFrame()
             vCurrentKeys = mvCurrentKeys;
             vbVO = mvbVO;
             vbMap = mvbMap;
+            vbGround = mvbGround;  // My revise 添加变量
         }
         else if(mState==Tracking::LOST)
         {
@@ -105,9 +106,21 @@ cv::Mat FrameDrawer::DrawFrame()
                 // This is a match to a MapPoint in the map
                 if(vbMap[i])
                 {
+                    
+                    // cv::rectangle(im,pt1,pt2,cv::Scalar(0,255,0));
+                    // cv::circle(im,vCurrentKeys[i].pt,2,cv::Scalar(0,255,0),-1);
+                    // mnTracked++;
+                    // My revise 增加地面点绘制
+                    if(vbGround[i]) {
+                    cv::rectangle(im,pt1,pt2,cv::Scalar(155,0,255));
+                    cv::circle(im,vCurrentKeys[i].pt,2,cv::Scalar(155,0,255),-1);
+                    }
+                    else {
                     cv::rectangle(im,pt1,pt2,cv::Scalar(0,255,0));
                     cv::circle(im,vCurrentKeys[i].pt,2,cv::Scalar(0,255,0),-1);
+                    }
                     mnTracked++;
+
                 }
                 else // This is match to a "visual odometry" MapPoint created in the last frame
                 {
@@ -172,6 +185,11 @@ void FrameDrawer::Update(Tracking *pTracker)
     N = mvCurrentKeys.size();
     mvbVO = vector<bool>(N,false);
     mvbMap = vector<bool>(N,false);
+
+    // My revise 添加地面点标记
+    mvbGround = vector<bool>(N,false);
+
+
     mbOnlyTracking = pTracker->mbOnlyTracking;
 
 
@@ -193,6 +211,10 @@ void FrameDrawer::Update(Tracking *pTracker)
                         mvbMap[i]=true;
                     else
                         mvbVO[i]=true;
+
+                    // My revise 添加地面点标记
+                    if(pMP->mbGround)
+                        mvbGround[i]=true;
                 }
             }
         }

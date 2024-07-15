@@ -32,6 +32,7 @@ LocalMapping::LocalMapping(Map *pMap, const float bMonocular):
     mbMonocular(bMonocular), mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpMap(pMap),
     mbAbortBA(false), mbStopped(false), mbStopRequested(false), mbNotStop(false), mbAcceptKeyFrames(true)
 {
+    
 }
 
 void LocalMapping::SetLoopCloser(LoopClosing* pLoopCloser)
@@ -58,13 +59,13 @@ void LocalMapping::Run()
         if(CheckNewKeyFrames())
         {
             // BoW conversion and insertion in Map
-            ProcessNewKeyFrame();
+            ProcessNewKeyFrame(); // 在这里判断旧点是否地面点
 
             // Check recent MapPoints
             MapPointCulling();
 
             // Triangulate new MapPoints
-            CreateNewMapPoints();
+            CreateNewMapPoints(); // 在这里判断新点是否地面点
 
             if(!CheckNewKeyFrames())
             {
@@ -149,6 +150,10 @@ void LocalMapping::ProcessNewKeyFrame()
                 if(!pMP->IsInKeyFrame(mpCurrentKeyFrame))
                 {
                     pMP->AddObservation(mpCurrentKeyFrame, i);
+
+                    // My revise 判断是否平面点
+                    pMP->UpdateGroundState(mpMap->mvGroundPlaneNormal, mpMap->mGroundThres);
+
                     pMP->UpdateNormalAndDepth();
                     pMP->ComputeDistinctiveDescriptors();
                 }
@@ -432,6 +437,12 @@ void LocalMapping::CreateNewMapPoints()
 
             // Triangulation is succesfull
             MapPoint* pMP = new MapPoint(x3D,mpCurrentKeyFrame,mpMap);
+
+            // My revise 判断是否平面点
+            pMP->UpdateGroundState(mpMap->mvGroundPlaneNormal, mpMap->mGroundThres);
+
+
+
 
             pMP->AddObservation(mpCurrentKeyFrame,idx1);            
             pMP->AddObservation(pKF2,idx2);

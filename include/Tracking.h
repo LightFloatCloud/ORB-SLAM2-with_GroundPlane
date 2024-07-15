@@ -101,6 +101,13 @@ public:
     std::vector<int> mvIniMatches;
     std::vector<cv::Point2f> mvbPrevMatched;
     std::vector<cv::Point3f> mvIniP3D;
+    
+    // My revise 添加初始化完的平面 n 和 平面上的点
+    std::vector<bool> mvbGround;
+    cv::Mat mInitGroundNormal;
+    // My revise 添加配置文件目录
+    string mSettingPath;
+
     Frame mInitialFrame;
 
     // Lists used to recover the full camera trajectory at the end of the execution.

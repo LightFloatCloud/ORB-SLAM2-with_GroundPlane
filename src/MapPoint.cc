@@ -33,7 +33,7 @@ MapPoint::MapPoint(const cv::Mat &Pos, KeyFrame *pRefKF, Map* pMap):
     mnFirstKFid(pRefKF->mnId), mnFirstFrame(pRefKF->mnFrameId), nObs(0), mnTrackReferenceForFrame(0),
     mnLastFrameSeen(0), mnBALocalForKF(0), mnFuseCandidateForKF(0), mnLoopPointForKF(0), mnCorrectedByKF(0),
     mnCorrectedReference(0), mnBAGlobalForKF(0), mpRefKF(pRefKF), mnVisible(1), mnFound(1), mbBad(false),
-    mpReplaced(static_cast<MapPoint*>(NULL)), mfMinDistance(0), mfMaxDistance(0), mpMap(pMap)
+    mpReplaced(static_cast<MapPoint*>(NULL)), mfMinDistance(0), mfMaxDistance(0), mpMap(pMap), mbGround(false)
 {
     Pos.copyTo(mWorldPos);
     mNormalVector = cv::Mat::zeros(3,1,CV_32F);
@@ -47,7 +47,7 @@ MapPoint::MapPoint(const cv::Mat &Pos, Map* pMap, Frame* pFrame, const int &idxF
     mnFirstKFid(-1), mnFirstFrame(pFrame->mnId), nObs(0), mnTrackReferenceForFrame(0), mnLastFrameSeen(0),
     mnBALocalForKF(0), mnFuseCandidateForKF(0),mnLoopPointForKF(0), mnCorrectedByKF(0),
     mnCorrectedReference(0), mnBAGlobalForKF(0), mpRefKF(static_cast<KeyFrame*>(NULL)), mnVisible(1),
-    mnFound(1), mbBad(false), mpReplaced(NULL), mpMap(pMap)
+    mnFound(1), mbBad(false), mpReplaced(NULL), mpMap(pMap), mbGround(false)
 {
     Pos.copyTo(mWorldPos);
     cv::Mat Ow = pFrame->GetCameraCenter();
@@ -414,6 +414,21 @@ int MapPoint::PredictScale(const float &currentDist, Frame* pF)
         nScale = pF->mnScaleLevels-1;
 
     return nScale;
+}
+
+bool MapPoint::UpdateGroundState(const cv::Mat &GroundNormal, const float &GroundThres)
+{
+    float judge_ground = (mWorldPos.dot(GroundNormal) + 1.0) / cv::norm(GroundNormal);
+    if(judge_ground < GroundThres && judge_ground > -GroundThres * 1.4) {
+        mbGround = true;
+        mpMap->mspGroundPoints.insert(this);
+    }
+    else
+    {
+        mbGround = false;
+        mpMap->mspGroundPoints.erase(this);
+    }
+    return mbGround;
 }
 
 
