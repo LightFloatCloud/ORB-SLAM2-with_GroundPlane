@@ -748,7 +748,7 @@ void Tracking::CreateInitialMapMonocular()
 
     Optimizer::GlobalBundleAdjustemnt(mpMap,20);
 
-    // Set median depth to 1
+    // Set median depth to 1 场景深度归一化到1m
     float medianDepth = pKFini->ComputeSceneMedianDepth(2);
     float invMedianDepth = 1.0f/medianDepth;
 

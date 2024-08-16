@@ -27,7 +27,7 @@ namespace ORB_SLAM2
 
 Map::Map():mnMaxKFid(0),mnBigChangeIdx(0),mvGroundPlaneNormal(3,1,CV_32F)
 {
-    cv::FileStorage fSettings("/root/catkin_ws/src/orbslam-ros/launch/Redmi_logger.yaml", cv::FileStorage::READ);
+    cv::FileStorage fSettings("/root/catkin_ws/src/orbslam-ros/launch/Redmi_logger_480.yaml", cv::FileStorage::READ);
     mGroundThres = fSettings["Map.Ground_threshold"];
 
 }
