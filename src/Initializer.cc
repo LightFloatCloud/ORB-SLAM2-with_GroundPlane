@@ -45,6 +45,20 @@ Initializer::Initializer(const Frame &ReferenceFrame, float sigma, int iteration
     // cv::FileStorage fSettings("/root/catkin_ws/src/orbslam-ros/launch/Redmi_logger.yaml", cv::FileStorage::READ);
     cv::FileStorage fSettings(strSettingPath, cv::FileStorage::READ);
     mRH_threshold = fSettings["Homography.RH"];
+
+    mMinParallax = fSettings["Initial.minParallax"];
+    if(mMinParallax == 0) {
+        mMinParallax = 0.6;
+    }
+    mMinTriangulated = fSettings["Initial.minTriangulated"];
+    if(mMinTriangulated == 0) {
+        mMinTriangulated = 20;
+    }
+    mSecGoodFactor = fSettings["Initial.SecGoodFactor"];
+    if(mSecGoodFactor == 0) {
+        mSecGoodFactor = 0.75;
+    }
+    
     mImageWidth = fSettings["Camera.width"];
     mImageHeight = fSettings["Camera.height"];
     if(mImageWidth<1 || mImageHeight<1)
@@ -75,9 +89,14 @@ bool Initializer::Initialize(const Frame &CurrentFrame, const vector<int> &vMatc
             cv::Point2f P2 = mvKeys2[vMatches12[i]].pt;
             float k = mImageHeight / (2 * mImageWidth);
             float b = mImageHeight / 2;
-            bool bP1 = (P1.y > k * P1.x) && (P1.y > b - k * P1.x);
-            bool bP2 = (P2.y > k * P2.x) && (P2.y > b - k * P2.x);
+            auto isValidPoint = [&](const cv::Point2f& P) -> bool {
+                // return (P.y > k * P.x) && (P.y > b - k * P.x);
+                return (P.y > mImageHeight * 0.5);
+            };
+            bool bP1 = isValidPoint(P1);
+            bool bP2 = isValidPoint(P2);
             if(bP1 && bP2) {
+            // 原程序
             mvMatches12.push_back(make_pair(i,vMatches12[i]));
             mvbMatched1[i]=true;
             }
@@ -147,11 +166,11 @@ bool Initializer::Initialize(const Frame &CurrentFrame, const vector<int> &vMatc
         //return ReconstructH(vbMatchesInliersH,H,mK,R21,t21,vP3D,vbTriangulated,1.0,50);
         // My revise
         vbProbableGround = vbMatchesInliersH;
-        return ReconstructH(vbMatchesInliersH,H,mK,R21,t21,n1,vP3D,vbTriangulated,1.0,50);  // 三角化成功50个点
+        return ReconstructH(vbMatchesInliersH,H,mK,R21,t21,n1,vP3D,vbTriangulated,mMinParallax,mMinTriangulated);  // 三角化成功50个点  最小角度1.0
     }
     else //if(pF_HF>0.6)
     {
-        //return ReconstructF(vbMatchesInliersF,F,mK,R21,t21,vP3D,vbTriangulated,1.0,50);
+        //return ReconstructF(vbMatchesInliersF,F,mK,R21,t21,vP3D,vbTriangulated,1.0,mMinTriangulated);
         std::cout << "F is better than H." << std::endl;
         return false;
     }
@@ -769,7 +788,7 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
     }
 
 
-    if(secondBestGood<0.75*bestGood && bestParallax>=minParallax && bestGood>minTriangulated && bestGood>0.9*N)
+    if(secondBestGood<mSecGoodFactor*bestGood && bestParallax>=minParallax && bestGood>minTriangulated && bestGood>0.9*N)
     {
         vR[bestSolutionIdx].copyTo(R21);
         vt[bestSolutionIdx].copyTo(t21);
@@ -780,7 +799,26 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
         vP3D = bestP3D;
         vbTriangulated = bestTriangulated;
 
+        std::cout << "secondBestGood: " 
+                << std::fixed << std::setprecision(3) << static_cast<float>(secondBestGood) / bestGood 
+                << ", bestParallax: " << std::setprecision(2) << bestParallax
+                << ", bestGood: " << bestGood 
+                << std::endl;
+
         return true;
+    }
+    else {
+        if(secondBestGood >= mSecGoodFactor*bestGood)
+            std::cout << "secondBestGood is higher than " << static_cast<int>(mSecGoodFactor*100) << " percent of bestGood. Current: " 
+                << std::fixed << std::setprecision(3) << static_cast<float>(secondBestGood) / bestGood 
+                << std::endl;
+        if(bestParallax < minParallax)
+            std::cout << "bestParallax is less than the minimum required parallax. Parallax: " << std::setprecision(2) << bestParallax << std::endl;
+        if(bestGood <= minTriangulated)
+            std::cout << "bestGood is less than the minimum required triangulated points. bestGood: " << bestGood << std::endl;
+        if(bestGood <= 0.9*N)
+            std::cout << "bestGood is less than 90% of the total inlier points." << std::endl;
+        
     }
 
     return false;
@@ -952,7 +990,7 @@ int Initializer::CheckRT(const cv::Mat &R, const cv::Mat &t, const vector<cv::Ke
     {
         sort(vCosParallax.begin(),vCosParallax.end());
 
-        size_t idx = min(50,int(vCosParallax.size()-1));
+        size_t idx = min(mMinTriangulated,int(vCosParallax.size()-1));
         parallax = acos(vCosParallax[idx])*180/CV_PI;
     }
     else

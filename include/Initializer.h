@@ -97,6 +97,9 @@ private:
 
     // My revise 添加参数
     float mRH_threshold;
+    int mMinTriangulated;
+    float mMinParallax;
+    float mSecGoodFactor;
     float mImageWidth, mImageHeight;
 
 };

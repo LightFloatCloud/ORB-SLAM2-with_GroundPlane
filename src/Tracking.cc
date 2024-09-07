@@ -642,31 +642,40 @@ void Tracking::MonocularInitialization()
 
         
             // My revise 拟合平面
-            cv::Mat A(ground_point_num, 3, CV_32F);
-            for (int i = 0, k = 0; i < ground_point_num; k++) {
-                if(vbTriangulated[k] && vbProbableGround[k]) {
-                    A.at<float>(i, 0) = mvIniP3D[k].x;
-                    A.at<float>(i, 1) = mvIniP3D[k].y;
-                    A.at<float>(i, 2) = mvIniP3D[k].z;
-                    i ++;
+            if(ground_point_num >= 3) {
+
+                cv::Mat A(ground_point_num, 3, CV_32F);
+                for (int i = 0, k = 0; i < ground_point_num; k++) {
+                    if(vbTriangulated[k] && vbProbableGround[k]) {
+                        A.at<float>(i, 0) = mvIniP3D[k].x;
+                        A.at<float>(i, 1) = mvIniP3D[k].y;
+                        A.at<float>(i, 2) = mvIniP3D[k].z;
+                        i ++;
+                    }
                 }
+                //cout << "Initial_Pointnums: " << ground_point_num << endl;
+                cv::Mat U,w,Vt,V;
+                //cv::SVD::compute(A,w,U,Vt,cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
+                cv::SVD svd(A, cv::SVD::FULL_UV);
+                U = svd.u.colRange(0, 3);
+                Vt = svd.vt;
+                cv::Mat S_inv = cv::Mat::diag(1.0 / svd.w);
+                cv::Mat b(ground_point_num, 1, CV_32F, cv::Scalar(-1.0f));
+                V=Vt.t();
+                //cout << "V = " << V << endl;
+                //cout << "S_inv = " << S_inv << endl;
+                //cout << "U = " << U << endl;
+                //cout << "b = " << b << endl;
+                cv::Mat Ground_n = V * S_inv * U.t() * b;
+                mInitGroundNormal = Ground_n;
+                cout << "Initial_GroundNormal_2: " << mInitGroundNormal << endl;
+
             }
-            //cout << "Initial_Pointnums: " << ground_point_num << endl;
-            cv::Mat U,w,Vt,V;
-            //cv::SVD::compute(A,w,U,Vt,cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
-            cv::SVD svd(A, cv::SVD::FULL_UV);
-            U = svd.u.colRange(0, 3);
-            Vt = svd.vt;
-            cv::Mat S_inv = cv::Mat::diag(1.0 / svd.w);
-            cv::Mat b(ground_point_num, 1, CV_32F, cv::Scalar(-1.0f));
-            V=Vt.t();
-            //cout << "V = " << V << endl;
-            //cout << "S_inv = " << S_inv << endl;
-            //cout << "U = " << U << endl;
-            //cout << "b = " << b << endl;
-            cv::Mat Ground_n = V * S_inv * U.t() * b;
-            mInitGroundNormal = Ground_n;
-            cout << "Initial_GroundNormal_2: " << mInitGroundNormal << endl;
+            else {
+                cout << "NO Initial_GroundNormal! Too few ground_point_num:"<< ground_point_num << endl;
+                mInitGroundNormal =  cv::Mat::zeros(3, 1, CV_32F);
+            }
+            
         
 
 
@@ -680,6 +689,37 @@ void Tracking::MonocularInitialization()
             CreateInitialMapMonocular();
 
         }
+
+        // My revise 删除一些匹配
+/*
+        for(size_t i=0, iend=mvIniMatches.size(); i<iend; i++)
+        {
+            if(mvIniMatches[i] >= 0)
+            {
+                // Get the keypoints from both frames
+                cv::Point2f P1 = mInitialFrame.mvKeysUn[i].pt;
+                cv::Point2f P2 = mCurrentFrame.mvKeysUn[mvIniMatches[i]].pt;
+
+                // Define a function to check if the point is in the lower half of the image
+                auto isValidPoint = [&](const cv::Point2f& P) -> bool {
+                    return (P.y > 480 * 0.55);
+                };
+
+                // Check if both keypoints are in the lower half of the image
+                bool bP1 = isValidPoint(P1);
+                bool bP2 = isValidPoint(P2);
+
+                if(bP1 && bP2) {
+
+                }
+                else {
+                    // If not valid, mark as unmatched
+                    mvIniMatches[i] = -1;
+                }
+            }
+        }
+*/
+
     }
 }
 
@@ -752,9 +792,10 @@ void Tracking::CreateInitialMapMonocular()
     float medianDepth = pKFini->ComputeSceneMedianDepth(2);
     float invMedianDepth = 1.0f/medianDepth;
 
-    if(medianDepth<0 || pKFcur->TrackedMapPoints(1)<70) // My Revise from <100
+    // My revise
+    if(medianDepth<0 || pKFcur->TrackedMapPoints(1)<30 || mInitGroundNormal.at<float>(2)==0) // My Revise from <100
     {
-        cout << "Wrong initialization, reseting..." << endl;
+        cout << "Wrong initialization, medianDepth: " << medianDepth << ", TrackedMapPoints: " << pKFcur->TrackedMapPoints(1) << ", reseting..."<< endl;
         Reset();
         return;
     }
