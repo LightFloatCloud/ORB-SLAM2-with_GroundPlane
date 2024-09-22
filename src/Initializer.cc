@@ -45,14 +45,15 @@ Initializer::Initializer(const Frame &ReferenceFrame, float sigma, int iteration
     // cv::FileStorage fSettings("/root/catkin_ws/src/orbslam-ros/launch/Redmi_logger.yaml", cv::FileStorage::READ);
     cv::FileStorage fSettings(strSettingPath, cv::FileStorage::READ);
     mRH_threshold = fSettings["Homography.RH"];
+    mROI = fSettings["Initial.ROI"];
 
     mMinParallax = fSettings["Initial.minParallax"];
     if(mMinParallax == 0) {
-        mMinParallax = 0.6;
+        mMinParallax = 1.0;
     }
     mMinTriangulated = fSettings["Initial.minTriangulated"];
     if(mMinTriangulated == 0) {
-        mMinTriangulated = 20;
+        mMinTriangulated = 50;
     }
     mSecGoodFactor = fSettings["Initial.SecGoodFactor"];
     if(mSecGoodFactor == 0) {
@@ -87,11 +88,17 @@ bool Initializer::Initialize(const Frame &CurrentFrame, const vector<int> &vMatc
             // my revise 添加点的位置限制
             cv::Point2f P1 = mvKeys1[i].pt;
             cv::Point2f P2 = mvKeys2[vMatches12[i]].pt;
+
             float k = mImageHeight / (2 * mImageWidth);
             float b = mImageHeight / 2;
             auto isValidPoint = [&](const cv::Point2f& P) -> bool {
-                // return (P.y > k * P.x) && (P.y > b - k * P.x);
-                return (P.y > mImageHeight * 0.5);
+                if(mROI) {
+                    return (P.y > mImageHeight * mROI);
+                }
+                else {
+                    return (P.y > k * P.x) && (P.y > b - k * P.x);
+                }
+                
             };
             bool bP1 = isValidPoint(P1);
             bool bP2 = isValidPoint(P2);
