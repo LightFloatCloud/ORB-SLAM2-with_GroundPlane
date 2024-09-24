@@ -19,6 +19,7 @@
 */
 #ifndef INITIALIZER_H
 #define INITIALIZER_H
+#define SHOW_TIMECOST
 
 #include<opencv2/opencv.hpp>
 #include "Frame.h"

@@ -27,6 +27,11 @@
 
 #include<thread>
 
+
+#ifdef SHOW_TIMECOST
+#include <chrono>
+#endif
+
 namespace ORB_SLAM2
 {
 
@@ -189,6 +194,10 @@ bool Initializer::Initialize(const Frame &CurrentFrame, const vector<int> &vMatc
 
 void Initializer::FindHomography(vector<bool> &vbMatchesInliers, float &score, cv::Mat &H21)
 {
+    #ifdef SHOW_TIMECOST
+    auto start_time = std::chrono::high_resolution_clock::now();
+    #endif
+
     // Number of putative matches
     const int N = mvMatches12.size();
 
@@ -235,6 +244,12 @@ void Initializer::FindHomography(vector<bool> &vbMatchesInliers, float &score, c
             score = currentScore;
         }
     }
+
+    #ifdef SHOW_TIMECOST
+    auto end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> duration = end_time - start_time;
+    std::cout << "-- FindHomography cost: " << duration.count() << " ms." << std::endl;
+    #endif
 }
 
 
@@ -639,6 +654,10 @@ bool Initializer::ReconstructF(vector<bool> &vbMatchesInliers, cv::Mat &F21, cv:
 bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv::Mat &K,
                       cv::Mat &R21, cv::Mat &t21, cv::Mat &n1, vector<cv::Point3f> &vP3D, vector<bool> &vbTriangulated, float minParallax, int minTriangulated)
 {
+    #ifdef SHOW_TIMECOST
+    auto start_time = std::chrono::high_resolution_clock::now();
+    #endif
+
     int N=0;
     for(size_t i=0, iend = vbMatchesInliers.size() ; i<iend; i++)
         if(vbMatchesInliers[i])
@@ -827,6 +846,12 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
             std::cout << "bestGood is less than 90% of the total inlier points." << std::endl;
         
     }
+
+    #ifdef SHOW_TIMECOST
+    auto end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> duration = end_time - start_time;
+    std::cout << "-- ReconstructH cost: " << duration.count() << " ms." << std::endl;
+    #endif
 
     return false;
 }

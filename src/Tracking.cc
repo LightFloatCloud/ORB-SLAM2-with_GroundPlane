@@ -37,11 +37,18 @@
 
 #include<mutex>
 
+#ifdef SHOW_TIMECOST
+#include <chrono>
+#endif
 
 using namespace std;
 
 namespace ORB_SLAM2
 {
+#ifdef SHOW_TIMECOST
+    std::chrono::duration<double, std::milli> duration(0.0);
+#endif
+
 
 Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer, Map *pMap, KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor):
     mState(NO_IMAGES_YET), mSensor(sensor), mbOnlyTracking(false), mbVO(false), mpORBVocabulary(pVoc),
@@ -640,7 +647,9 @@ void Tracking::MonocularInitialization()
 
             //cout << "Initial_GroundNormal_1: " << mInitGroundNormal << endl;
 
-        
+            #ifdef SHOW_TIMECOST
+            auto start_time = std::chrono::high_resolution_clock::now();
+            #endif
             // My revise 拟合平面
             if(ground_point_num >= 3) {
 
@@ -675,6 +684,10 @@ void Tracking::MonocularInitialization()
                 cout << "NO Initial_GroundNormal! Too few ground_point_num:"<< ground_point_num << endl;
                 mInitGroundNormal =  cv::Mat::zeros(3, 1, CV_32F);
             }
+            #ifdef SHOW_TIMECOST
+            auto end_time = std::chrono::high_resolution_clock::now();
+            duration += end_time - start_time;
+            #endif
             
         
 
@@ -749,6 +762,9 @@ void Tracking::CreateInitialMapMonocular()
         MapPoint* pMP = new MapPoint(worldPos,pKFcur,mpMap);
 
         // My revise 为地图点增加新特性
+        #ifdef SHOW_TIMECOST
+        auto start_time = std::chrono::high_resolution_clock::now();
+        #endif
         if(mvbGround[i])
         {
             pMP->mbGround = true;
@@ -757,6 +773,10 @@ void Tracking::CreateInitialMapMonocular()
             // My revise 添加地面点
             mpMap->mspGroundPoints.insert(pMP);
         }
+        #ifdef SHOW_TIMECOST
+        auto end_time = std::chrono::high_resolution_clock::now();
+        duration += end_time - start_time;
+        #endif
 
         pKFini->AddMapPoint(pMP,i);
         pKFcur->AddMapPoint(pMP,mvIniMatches[i]);
@@ -775,6 +795,10 @@ void Tracking::CreateInitialMapMonocular()
         mpMap->AddMapPoint(pMP);
 
     }
+    #ifdef SHOW_TIMECOST
+    std::cout << "-- MonocularInit cost: " << duration.count() << " ms." << std::endl;
+    duration = std::chrono::duration<double, std::milli>(0);
+    #endif
     //My revise 为地图创建地平面
     mpMap->mvGroundPlaneNormal = mInitGroundNormal.clone();
     cout << "New Map created with GroundPlane (" << mInitGroundNormal.at<float>(0) << ", "<< mInitGroundNormal.at<float>(1) <<", " << mInitGroundNormal.at<float>(2) << ")" << endl;

@@ -22,5 +22,8 @@ build/
 *~
 lib/
 tools/bin_vocabulary
+html/
+latex/
+Doxyfile
 
 
