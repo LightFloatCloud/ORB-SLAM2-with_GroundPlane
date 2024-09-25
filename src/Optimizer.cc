@@ -790,10 +790,7 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
         duration += end_time - start_time;
 #endif
     }
-#ifdef SHOW_TIMECOST
-    std::cout << "-- UpdateGround cost: " << duration.count() << " ms." << std::endl;
-    duration = std::chrono::duration<double, std::milli>(0);
-#endif
+
     
     // 检查是否外部请求停止
     if(pbStopFlag)
@@ -801,6 +798,9 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
             bDoMore = false;
     
     // My revise 显示地面点数量
+#ifdef SHOW_TIMECOST
+    auto start_time = std::chrono::high_resolution_clock::now();
+#endif
     std::cout << "-- Now GP nums: " << pMap->mspGroundPoints.size() << std::endl;
     // 如果有外部请求停止,那么就不在进行第二阶段的优化
     if(bDoMore)
@@ -839,7 +839,12 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
         
 
     }
-
+#ifdef SHOW_TIMECOST
+    auto end_time = std::chrono::high_resolution_clock::now();
+    duration += end_time - start_time;
+    std::cout << "-- UpdateGround cost: " << duration.count() << " ms." << std::endl;
+    duration = std::chrono::duration<double, std::milli>(0);
+#endif
 
 
 
