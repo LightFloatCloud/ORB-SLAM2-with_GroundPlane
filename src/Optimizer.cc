@@ -34,9 +34,94 @@
 
 #include<mutex>
 
+namespace g2o
+{
+// 地平面 顶点
+class VertexPlane : public BaseVertex<3, Vector3d>
+{
+public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    VertexPlane() : BaseVertex<3, Eigen::Vector3d>(){
+    }
+
+    bool read(std::istream& is) {
+        // 从输入流中读取估计值
+        for (int i = 0; i < 3; ++i) {
+            is >> _estimate[i];
+        }
+        return true;
+    };
+    bool write(std::ostream& os) const {
+        // 将估计值写入输出流
+        for (int i = 0; i < 3; ++i) {
+            os << _estimate[i] << " ";
+        }
+        return os.good();
+    };
+
+    virtual void setToOriginImpl() {
+      _estimate.fill(0.);
+    }
+
+    virtual void oplusImpl(const double* update)
+    {
+      Eigen::Map<const Vector3d> v(update);
+      _estimate += v;
+    }
+};
+
+
+// 边 地面-地面点
+class  EdgePlaneXYZ: public  BaseBinaryEdge<1, double, VertexSBAPointXYZ, VertexPlane>{ // todo
+public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+    EdgePlaneXYZ() {}
+
+    bool read(std::istream& is) {
+        // 读取测量值
+        is >> _measurement;
+        return true;
+    }
+
+    bool write(std::ostream& os) const {
+        // 写入测量值
+        os << _measurement;
+        return os.good();
+    }
+  
+    void computeError() {
+        const VertexPlane* plane = static_cast<const VertexPlane*>(_vertices[1]);
+        const VertexSBAPointXYZ* point = static_cast<const VertexSBAPointXYZ*>(_vertices[0]);
+
+        // 计算点到平面的距离
+        const Eigen::Vector3d& pointEstimate = point->estimate();
+        const Eigen::Vector3d& planeEstimate = plane->estimate();
+        double distance = planeEstimate.dot(pointEstimate) + 1.0;
+
+        // 计算残差
+        _error(0) = distance / planeEstimate.norm();
+    }
+
+    virtual void linearizeOplus() { // todo /////////////////////////////////
+        const g2o::VertexSBAPointXYZ* point = static_cast<const g2o::VertexSBAPointXYZ*>(_vertices[0]);
+        const VertexPlane* plane = static_cast<const VertexPlane*>(_vertices[1]);
+
+        const Eigen::Vector3d& pointEstimate = point->estimate();
+        const Eigen::Vector3d& planeEstimate = plane->estimate();
+        double norm = planeEstimate.norm();
+
+        // 计算雅可比矩阵
+        _jacobianOplusXi = planeEstimate.transpose() / norm;
+        _jacobianOplusXj = pointEstimate.transpose() / norm;
+    }
+
+};
+
+}
+
 namespace ORB_SLAM2
 {
-
 
 void Optimizer::GlobalBundleAdjustemnt(Map* pMap, int nIterations, bool* pbStopFlag, const unsigned long nLoopKF, const bool bRobust)
 {
@@ -545,6 +630,16 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
             maxKFid=pKFi->mnId;
     }
 
+    // My revise 设置地面vertice
+    const int PLANE_ID = 9999999;
+    {
+        g2o::VertexPlane * vPlane = new g2o::VertexPlane(); 
+        vPlane->setEstimate(Converter::toVector3d(pMap->mvGroundPlaneNormal));
+        vPlane->setId(PLANE_ID);
+        vPlane->setFixed(true);
+        optimizer.addVertex(vPlane);
+    }
+
     // Set MapPoint vertices
     const int nExpectedSize = (lLocalKeyFrames.size()+lFixedCameras.size())*lLocalMapPoints.size();
 
@@ -566,6 +661,8 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
     vector<MapPoint*> vpMapPointEdgeStereo;
     vpMapPointEdgeStereo.reserve(nExpectedSize);
 
+    // 卡方 0.05 显著性水平
+    const float thHuberPlane = sqrt(3.841);
     const float thHuberMono = sqrt(5.991);
     const float thHuberStereo = sqrt(7.815);
 
@@ -647,6 +744,30 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
                     vpEdgesStereo.push_back(e);
                     vpEdgeKFStereo.push_back(pKFi);
                     vpMapPointEdgeStereo.push_back(pMP);
+                }
+
+
+                if(pMP->mbGround == true)   // todo
+                {
+                    Eigen::Matrix<double,1,1> obs;
+                    // const cv::Mat& GroundNormal = pMap->mvGroundPlaneNormal;
+                    // double distance = (mWorldPos.dot(GroundNormal) + 1.0) / cv::norm(GroundNormal);
+                    obs << 0.0;
+                    
+                    g2o::EdgePlaneXYZ* ePlane = new g2o::EdgePlaneXYZ();  
+                    ePlane->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));  
+                    ePlane->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(PLANE_ID)));  
+
+                    ePlane->setMeasurement(obs);
+                    const float &invSigma2 = pKFi->mvInvLevelSigma2[kpUn.octave];
+                    ePlane->setInformation(Eigen::Matrix<double, 1, 1>::Identity()*invSigma2);
+
+                    g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+                    ePlane->setRobustKernel(rk);
+                    rk->setDelta(thHuberPlane);
+
+                    optimizer.addEdge(ePlane);
+
                 }
             }
         }
