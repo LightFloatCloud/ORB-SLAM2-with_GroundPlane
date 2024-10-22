@@ -111,9 +111,16 @@ public:
         const Eigen::Vector3d& planeEstimate = plane->estimate();
         double norm = planeEstimate.norm();
 
-        // 计算雅可比矩阵
+        // 点的雅可比矩阵
         _jacobianOplusXi = planeEstimate.transpose() / norm;
-        _jacobianOplusXj = pointEstimate.transpose() / norm;
+        /*  面的雅可比矩阵
+        const e = (planeEstimate.dot(pointEstimate) + 1.0) / norm;
+        const double a = pointEstimate[0], b = pointEstimate[1], c = pointEstimate[2];
+        const double A = planeEstimate[0], B = planeEstimate[1], C = planeEstimate[2];
+        _jacobianOplusXj(0, 0) = (a - A*e/norm) / norm;
+        _jacobianOplusXj(0, 1) = (b - B*e/norm) / norm;
+        _jacobianOplusXj(0, 2) = (c - C*e/norm) / norm;
+        */
     }
 
 };
@@ -749,10 +756,11 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
 
                 if(pMP->mbGround == true)   // todo
                 {
-                    Eigen::Matrix<double,1,1> obs;
+                    // Eigen::Matrix<double,1,1> obs;
+                    double obs;
                     // const cv::Mat& GroundNormal = pMap->mvGroundPlaneNormal;
                     // double distance = (mWorldPos.dot(GroundNormal) + 1.0) / cv::norm(GroundNormal);
-                    obs << 0.0;
+                    obs = 0.0;
                     
                     g2o::EdgePlaneXYZ* ePlane = new g2o::EdgePlaneXYZ();  
                     ePlane->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));  
