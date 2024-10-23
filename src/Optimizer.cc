@@ -72,7 +72,7 @@ public:
 
 
 // 边 地面-地面点
-class  EdgePlaneXYZ: public  BaseBinaryEdge<1, double, VertexSBAPointXYZ, VertexPlane>{ // todo
+class  EdgePlaneXYZ: public  BaseBinaryEdge<1, double, VertexSBAPointXYZ, VertexPlane>{ 
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -103,7 +103,7 @@ public:
         _error(0) = distance / planeEstimate.norm();
     }
 
-    virtual void linearizeOplus() { // todo /////////////////////////////////
+    virtual void linearizeOplus() { 
         const g2o::VertexSBAPointXYZ* point = static_cast<const g2o::VertexSBAPointXYZ*>(_vertices[0]);
         const VertexPlane* plane = static_cast<const VertexPlane*>(_vertices[1]);
 
@@ -668,6 +668,12 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
     vector<MapPoint*> vpMapPointEdgeStereo;
     vpMapPointEdgeStereo.reserve(nExpectedSize);
 
+    // My revise 设置地面相关的vector
+    vector<g2o::EdgePlaneXYZ*> vpEdgesGround;
+    vpEdgesGround.reserve(nExpectedSize);
+    vector<MapPoint*> vpMapPointEdgeGround;
+    vpMapPointEdgeGround.reserve(nExpectedSize);
+
     // 卡方 0.05 显著性水平
     const float thHuberPlane = sqrt(3.841);
     const float thHuberMono = sqrt(5.991);
@@ -754,12 +760,10 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
                 }
 
 
-                if(pMP->mbGround == true)   // todo
+                if(pMP->mbGround == true && pMap->mspGroundPoints.size() >= 100)   // todo
                 {
                     // Eigen::Matrix<double,1,1> obs;
                     double obs;
-                    // const cv::Mat& GroundNormal = pMap->mvGroundPlaneNormal;
-                    // double distance = (mWorldPos.dot(GroundNormal) + 1.0) / cv::norm(GroundNormal);
                     obs = 0.0;
                     
                     g2o::EdgePlaneXYZ* ePlane = new g2o::EdgePlaneXYZ();  
@@ -768,13 +772,15 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
 
                     ePlane->setMeasurement(obs);
                     const float &invSigma2 = pKFi->mvInvLevelSigma2[kpUn.octave];
-                    ePlane->setInformation(Eigen::Matrix<double, 1, 1>::Identity()*invSigma2);
+                    ePlane->setInformation(Eigen::Matrix<double, 1, 1>::Identity()*invSigma2*100);
 
                     g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
                     ePlane->setRobustKernel(rk);
                     rk->setDelta(thHuberPlane);
 
                     optimizer.addEdge(ePlane);
+                    vpEdgesGround.push_back(ePlane);
+                    vpMapPointEdgeGround.push_back(pMP);
 
                 }
             }
@@ -829,6 +835,23 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
 
         e->setRobustKernel(0);
     }
+    // My revise 增添地面相关的 
+    for(size_t i=0, iend=vpEdgesGround.size(); i<iend;i++)
+    {
+        g2o::EdgePlaneXYZ* e = vpEdgesGround[i];
+        MapPoint* pMP = vpMapPointEdgeGround[i];
+
+        if(pMP->isBad())
+            continue;
+
+        if(e->chi2()>3.841)
+        {
+            e->setLevel(1);
+        }
+        e->setRobustKernel(0);
+    }
+
+
 
     // Optimize again without the outliers
 
