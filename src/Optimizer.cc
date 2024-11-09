@@ -818,6 +818,7 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
 
         }
         int n = vpGroundPoints.size();
+        std::cout << "-- GroundPoints in BA: " << n << "." << std::endl;
         
         if(n > 4)
         {

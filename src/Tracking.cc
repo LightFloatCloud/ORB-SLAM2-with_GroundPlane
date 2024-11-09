@@ -153,6 +153,11 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
             mDepthMapFactor = 1.0f/mDepthMapFactor;
     }
 
+
+    // My revise 
+    pMap->mGroundThres = fSettings["Map.Ground_threshold"];
+    cout << endl << "Ground Threshold: " << pMap->mGroundThres << endl;
+
 }
 
 void Tracking::SetLocalMapper(LocalMapping *pLocalMapper)
