@@ -157,7 +157,7 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
     // My revise 
     pMap->mGroundThres = fSettings["Map.Ground_threshold"];
     cout << endl << "Ground Threshold: " << pMap->mGroundThres << endl;
-
+    pMap->mRecentGroundPointsNum = 2000;
 }
 
 void Tracking::SetLocalMapper(LocalMapping *pLocalMapper)
@@ -777,6 +777,9 @@ void Tracking::CreateInitialMapMonocular()
             //cout << "Ground Point: " << pMP->GetWorldPos() << endl;
             // My revise 添加地面点
             mpMap->mspGroundPoints.insert(pMP);
+            mpMap->mRecentGroundPoints.push_back(pMP);
+            mpMap->mRecentGroundPointsMap[pMP] = std::prev(mpMap->mRecentGroundPoints.end());
+
         }
         #ifdef SHOW_TIMECOST
         auto end_time = std::chrono::high_resolution_clock::now();

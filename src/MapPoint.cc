@@ -416,20 +416,63 @@ int MapPoint::PredictScale(const float &currentDist, Frame* pF)
     return nScale;
 }
 
-bool MapPoint::UpdateGroundState(const cv::Mat &GroundNormal, const float &GroundThres)
+bool MapPoint::UpdateGroundState(const cv::Mat &GroundNormal, const float &GroundThres, bool bUpdateRecent)
 {
+    unique_lock<mutex> lock(mMutexPos);
     float judge_ground = (mWorldPos.dot(GroundNormal) + 1.0) / cv::norm(GroundNormal);
-    if(judge_ground < GroundThres && judge_ground > -GroundThres * 1.4) {
+    if(judge_ground < GroundThres && judge_ground > -GroundThres * 1.5) {
+        if(!mbGround) // 一开始不是地面点，但更新后就是了，肯定得更新Recent
+            bUpdateRecent = true;
         mbGround = true;
         mpMap->mspGroundPoints.insert(this);
+
+        if(bUpdateRecent) {
+            // 如果点已经是地面点，则更新最近地面点集合
+            auto it = mpMap->mRecentGroundPointsMap.find(this);
+            if (it != mpMap->mRecentGroundPointsMap.end())
+            {
+                // 如果点已经在集合中，则将其从队列中移到最后
+                mpMap->mRecentGroundPoints.erase(it->second);
+                mpMap->mRecentGroundPoints.push_back(this);
+                it->second = std::prev(mpMap->mRecentGroundPoints.end()); // 更新迭代器
+            } 
+            else {
+                // 如果点不在集合中，则添加
+                if (mpMap->mRecentGroundPoints.size() >= mpMap->mRecentGroundPointsNum) {
+                    // 如果队列已满，移除最早的点
+                    MapPoint* oldestPoint = mpMap->mRecentGroundPoints.front();
+                    mpMap->mRecentGroundPoints.pop_front();
+                    mpMap->mRecentGroundPointsMap.erase(oldestPoint);
+                }
+                if (mpMap->mRecentGroundPoints.size() < mpMap->mRecentGroundPointsNum) {
+                    mpMap->mRecentGroundPoints.push_back(this);
+                    mpMap->mRecentGroundPointsMap[this] = std::prev(mpMap->mRecentGroundPoints.end());
+                }
+                
+            }
+
+        }
+
     }
     else
     {
+        if(mbGround) { // 之前是地面点
+            auto it = mpMap->mRecentGroundPointsMap.find(this);
+            if (it != mpMap->mRecentGroundPointsMap.end())
+            {
+                // 如果点已经在集合中，则将其从队列和Map中删除
+                mpMap->mRecentGroundPoints.erase(it->second);
+                mpMap->mRecentGroundPointsMap.erase(it);
+            } 
+        }
         mbGround = false;
         mpMap->mspGroundPoints.erase(this);
+
     }
     return mbGround;
 }
+
+
 
 
 

@@ -30,6 +30,7 @@
 
 // My revise
 #include <unordered_set>
+#include <unordered_map>
 
 
 namespace ORB_SLAM2
@@ -70,6 +71,11 @@ public:
     float mGroundThres;
     // My revise 地面点指针存储器
     std::unordered_set<MapPoint*> mspGroundPoints;
+
+    // My revise 储存最近的N个点在Optimizer中辅助更新地面
+    std::list<MapPoint*> mRecentGroundPoints;
+    std::unordered_map<MapPoint*, std::list<MapPoint*>::iterator> mRecentGroundPointsMap;
+    int mRecentGroundPointsNum;
 
     std::mutex mMutexMapUpdate;
 
