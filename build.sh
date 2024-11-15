@@ -8,19 +8,19 @@ make -j8
 
 cd ../../g2o
 
-echo "Configuring and building Thirdparty/g2o ..."
+# echo "Configuring and building Thirdparty/g2o ..."
 
-mkdir build
+# mkdir build
 cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j8
+# cmake .. -DCMAKE_BUILD_TYPE=Release
+# make -j8
 
 cd ../../../
 
-echo "Uncompress vocabulary ..."
+# echo "Uncompress vocabulary ..."
 
 cd Vocabulary
-tar -xf ORBvoc.txt.tar.gz
+# tar -xf ORBvoc.txt.tar.gz
 cd ..
 
 echo "Configuring and building ORB_SLAM2 ..."
@@ -31,5 +31,5 @@ cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j
 cd ..
 
-echo "Converting vocabulary to binary"
-./tools/bin_vocabulary
+# echo "Converting vocabulary to binary"
+# ./tools/bin_vocabulary

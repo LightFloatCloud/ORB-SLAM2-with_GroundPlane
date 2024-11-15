@@ -31,9 +31,14 @@
 #ifdef SHOW_TIMECOST
 #include <chrono>
 #endif
+#include<fstream>
 
 namespace ORB_SLAM2
 {
+
+const string logname_prefix = "/mnt/d/WslSystem/share/dataset/output/log";
+static int lognum = 0;
+ofstream logfile;
 
 Initializer::Initializer(const Frame &ReferenceFrame, float sigma, int iterations, const string &strSettingPath)
 {
@@ -79,6 +84,11 @@ Initializer::Initializer(const Frame &ReferenceFrame, float sigma, int iteration
 bool Initializer::Initialize(const Frame &CurrentFrame, const vector<int> &vMatches12, cv::Mat &R21, cv::Mat &t21,
                              vector<cv::Point3f> &vP3D, vector<bool> &vbTriangulated,       cv::Mat &n1,  vector<bool> &vbProbableGround)
 {
+lognum = CurrentFrame.mnId;
+string filename = logname_prefix + to_string(lognum) + ".txt";
+logfile.open(filename, ios::app);
+cout<<filename<<endl;
+// ofstream logfile(filename, ios::app);
     // Fill structures with current keypoints and matches with reference frame
     // Reference Frame: 1, Current Frame: 2
     mvKeys2 = CurrentFrame.mvKeysUn;
@@ -119,6 +129,16 @@ bool Initializer::Initialize(const Frame &CurrentFrame, const vector<int> &vMatc
         else
             mvbMatched1[i]=false;
     }
+logfile << "%%%% ----------------------------------------" << std::endl;
+logfile << "%% Match1.x, Match1.y, Match2.x, Match2.y" << std::endl;
+logfile << "mvMatches12 = [" << std::endl;
+for(auto& [Match1, Match2] : mvMatches12)
+{
+    cv::Point2f P1 = mvKeys1[Match1].pt;
+    cv::Point2f P2 = mvKeys2[Match2].pt;
+    logfile << P1.x <<","<< P1.y <<","<< P2.x <<","<< P2.y <<";"<< std::endl;
+}
+logfile << "];" << std::endl;
 
     const int N = mvMatches12.size();
 
@@ -166,6 +186,9 @@ bool Initializer::Initialize(const Frame &CurrentFrame, const vector<int> &vMatc
     threadH.join();
     threadF.join();
 
+logfile << "%% Homography 3*3" << std::endl;
+logfile << "H = " << H << ";" << std::endl;
+logfile.close();
     // Compute ratio of scores
     float RH = SH/(SH+SF);
 
@@ -781,6 +804,10 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
         vn.push_back(n);
     }
 
+string filename = logname_prefix + to_string(lognum) + ".txt";
+// ofstream logfile(filename, ios::app);
+logfile.open(filename, ios::app);
+logfile << "%%%% --------------------------(ReconstructH)" << std::endl;
 
     int bestGood = 0;
     int secondBestGood = 0;    
@@ -797,6 +824,18 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
         vector<cv::Point3f> vP3Di;
         vector<bool> vbTriangulatedi;
         int nGood = CheckRT(vR[i],vt[i],mvKeys1,mvKeys2,mvMatches12,vbMatchesInliers,K,vP3Di, 4.0*mSigma2, vbTriangulatedi, parallaxi);
+
+logfile << "%% nGood, R_i, t_i, P3D_i" << std::endl;
+logfile << "nGood"<< i <<" = " << nGood <<";" << std::endl;
+logfile << "R"<< i <<" = " << vR[i] <<";" << std::endl;
+logfile << "t"<< i <<" = " << vt[i] <<";" << std::endl;
+logfile << "vP3D"<< i <<" = [" <<std::endl;
+for(size_t i = 0; i < vbTriangulatedi.size(); i++)
+{
+    if(vbTriangulatedi[i])
+        logfile << vP3Di[i].x <<","<< vP3Di[i].y <<","<< vP3Di[i].z <<";"<< std::endl;
+}
+logfile << "];" << std::endl;
 
         if(nGood>bestGood)
         {
@@ -830,7 +869,7 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
                 << ", bestParallax: " << std::setprecision(2) << bestParallax
                 << ", bestGood: " << bestGood 
                 << std::endl;
-
+logfile.close();
         return true;
     }
     else {
@@ -843,7 +882,7 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
         if(bestGood <= minTriangulated)
             std::cout << "bestGood is less than the minimum required triangulated points. bestGood: " << bestGood << std::endl;
         if(bestGood <= 0.9*N)
-            std::cout << "bestGood is less than 90% of the total inlier points." << std::endl;
+            std::cout << "bestGood is less than 90%% of the total inlier points." << std::endl;
         
     }
 
@@ -852,6 +891,31 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
     std::chrono::duration<double, std::milli> duration = end_time - start_time;
     std::cout << "-- ReconstructH cost: " << duration.count() << " ms." << std::endl;
     #endif
+
+logfile << "%% best_R, best_t, best_n" << std::endl;
+logfile << "R = " << vR[bestSolutionIdx] <<";" << std::endl;
+logfile << "t = " << vt[bestSolutionIdx] <<";" << std::endl;
+logfile << "n = " << vn[bestSolutionIdx] <<";" << std::endl;
+
+logfile << "%% vP3D, vbTriangulated" << std::endl;
+logfile << "vP3D = [" <<std::endl;
+for(size_t i = 0; i < bestTriangulated.size(); i++)
+{
+    if(bestTriangulated[i])
+        logfile << bestP3D[i].x <<","<< bestP3D[i].y <<","<< bestP3D[i].z <<";"<< std::endl;
+}
+logfile << "];" << std::endl;
+// logfile << "vbTriangulated = [" <<std::endl;
+// for(const bool& isTriangulated : bestTriangulated)
+// {
+//     logfile << isTriangulated <<";"<< std::endl;
+// }
+// logfile << "];" << std::endl;
+
+
+logfile << "%% secondBestGood" << std::endl;
+logfile << "secondBestGood = " << static_cast<float>(secondBestGood) / bestGood << ";" <<std::endl;
+logfile.close();
 
     return false;
 }
