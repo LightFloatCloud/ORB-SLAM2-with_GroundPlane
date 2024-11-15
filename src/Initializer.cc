@@ -841,7 +841,7 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
         if(bestParallax < minParallax)
             std::cout << "bestParallax is less than the minimum required parallax. Parallax: " << std::setprecision(2) << bestParallax << std::endl;
         if(bestGood <= minTriangulated)
-            std::cout << "bestGood is less than the minimum required triangulated points. bestGood: " << bestGood << std::endl;
+            std::cout << "bestGood is less than the minimum "<< minTriangulated <<" required triangulated points. bestGood: " << bestGood << std::endl;
         if(bestGood <= 0.9*N)
             std::cout << "bestGood is less than 90% of the total inlier points." << std::endl;
         
@@ -1012,10 +1012,13 @@ int Initializer::CheckRT(const cv::Mat &R, const cv::Mat &t, const vector<cv::Ke
 
         vCosParallax.push_back(cosParallax);
         vP3D[vMatches12[i].first] = cv::Point3f(p3dC1.at<float>(0),p3dC1.at<float>(1),p3dC1.at<float>(2));
-        nGood++;
+        
 
-        if(cosParallax<0.99998)
+        if(cosParallax<0.99998) 
+        {
+            nGood++;
             vbGood[vMatches12[i].first]=true;
+        }
     }
 
     if(nGood>0)
