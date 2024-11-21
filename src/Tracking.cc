@@ -1441,7 +1441,7 @@ void Tracking::UpdateLocalKeyFrames()
                 {
                     mvpLocalKeyFrames.push_back(pNeighKF);
                     pNeighKF->mnTrackReferenceForFrame=mCurrentFrame.mnId;
-                    break;
+                    break;  //? 找到一个就直接跳出for循环? TODO fix bug
                 }
             }
         }
@@ -1468,7 +1468,7 @@ void Tracking::UpdateLocalKeyFrames()
             {
                 mvpLocalKeyFrames.push_back(pParent);
                 pParent->mnTrackReferenceForFrame=mCurrentFrame.mnId;
-                break;
+                break;  //! 感觉是个bug！如果找到父关键帧会直接跳出整个循环 fix bug TODO
             }
         }
 
