@@ -245,6 +245,7 @@ void Initializer::FindHomography(vector<bool> &vbMatchesInliers, float &score, c
             score = currentScore;
         }
     }
+cout << "-- score: " << score << endl;
 
     #ifdef SHOW_TIMECOST
     auto end_time = std::chrono::high_resolution_clock::now();
@@ -433,6 +434,9 @@ float Initializer::CheckHomography(const cv::Mat &H21, const cv::Mat &H12, vecto
         // Reprojection error in first image
         // x2in1 = H12*x2
 
+        // My revise  给中间偏下的点加权
+        float score_thisloop = 0;
+
         const float w2in1inv = 1.0/(h31inv*u2+h32inv*v2+h33inv);
         const float u2in1 = (h11inv*u2+h12inv*v2+h13inv)*w2in1inv;
         const float v2in1 = (h21inv*u2+h22inv*v2+h23inv)*w2in1inv;
@@ -444,7 +448,7 @@ float Initializer::CheckHomography(const cv::Mat &H21, const cv::Mat &H12, vecto
         if(chiSquare1>th)
             bIn = false;
         else
-            score += th - chiSquare1;
+            score_thisloop += th - chiSquare1;
 
         // Reprojection error in second image
         // x1in2 = H21*x1
@@ -460,14 +464,36 @@ float Initializer::CheckHomography(const cv::Mat &H21, const cv::Mat &H12, vecto
         if(chiSquare2>th)
             bIn = false;
         else
-            score += th - chiSquare2;
+            score_thisloop += th - chiSquare2;
 
         if(bIn)
             vbMatchesInliers[i]=true;
         else
             vbMatchesInliers[i]=false;
-    }
 
+        // My revise 给中间偏下的点加权
+        float normalize_u = (u2 * 4 / mImageWidth - 2);
+        float normalize_v = (3 - v2 * 3 / mImageHeight);
+        float matchFactor = 0.1;
+        if(normalize_u + normalize_v <= 2 && normalize_u - normalize_v >= -2) {
+            matchFactor = 1;
+        }
+        else {
+            float suppose_v = 0;
+            if(normalize_u < 0) {
+                suppose_v = normalize_u + 2;
+            }
+            else {
+                suppose_v = 2 - normalize_u;
+            }
+            float err_v = normalize_v - suppose_v;
+            if(err_v <= 1)
+                matchFactor = 1 - 0.7 * suppose_v;
+        }
+
+        score_thisloop *= matchFactor;
+        score += score_thisloop;
+    }
     return score;
 }
 
