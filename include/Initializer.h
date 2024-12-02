@@ -97,6 +97,7 @@ private:
 
 
     // My revise 添加参数
+    vector<Match> mvGroundMatches12;
     float mRH_threshold;
      float mROI;
     int mMinTriangulated;
