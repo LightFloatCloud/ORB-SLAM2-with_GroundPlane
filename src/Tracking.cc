@@ -272,7 +272,7 @@ cv::Mat Tracking::GrabImageMonocular(const cv::Mat &im, const double &timestamp)
         mCurrentFrame = Frame(mImGray,timestamp,mpORBextractorLeft,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
 
 
-const string imname_prefix = "/mnt/d/WslSystem/share/dataset/output/pic";
+const string imname_prefix = "/mnt/d/WslSystem/share/dataset/output/debug/pic";
 int imnum = mCurrentFrame.mnId;
 string filename = imname_prefix + to_string(imnum) + ".jpg";
 cv::imwrite(filename, mImGray);

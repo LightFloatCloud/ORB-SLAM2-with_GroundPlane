@@ -36,7 +36,7 @@
 namespace ORB_SLAM2
 {
 
-const string logname_prefix = "/mnt/d/WslSystem/share/dataset/output/log";
+const string logname_prefix = "/mnt/d/WslSystem/share/dataset/output/debug/log";
 static int lognum = 0;
 ofstream logfile;
 
@@ -96,10 +96,16 @@ cout<<filename<<endl;
     mvMatches12.clear();
     mvMatches12.reserve(mvKeys2.size());
     mvbMatched1.resize(mvKeys1.size());
+    mvGroundMatches12.clear();
+    mvGroundMatches12.reserve(mvKeys2.size());
     for(size_t i=0, iend=vMatches12.size();i<iend; i++)
     {
         if(vMatches12[i]>=0)
         {
+            mvMatches12.push_back(make_pair(i,vMatches12[i]));
+            mvbMatched1[i]=true;
+
+
             // my revise 添加点的位置限制
             cv::Point2f P1 = mvKeys1[i].pt;
             cv::Point2f P2 = mvKeys2[vMatches12[i]].pt;
@@ -118,12 +124,7 @@ cout<<filename<<endl;
             bool bP1 = isValidPoint(P1);
             bool bP2 = isValidPoint(P2);
             if(bP1 && bP2) {
-            // 原程序
-            mvMatches12.push_back(make_pair(i,vMatches12[i]));
-            mvbMatched1[i]=true;
-            }
-            else {
-                mvbMatched1[i]=false;
+                mvGroundMatches12.push_back(make_pair(i,vMatches12[i]));
             }
         }
         else
@@ -140,7 +141,7 @@ for(auto& [Match1, Match2] : mvMatches12)
 }
 logfile << "];" << std::endl;
 
-    const int N = mvMatches12.size();
+    const int N = mvGroundMatches12.size();
 
     // Indices for minimum set selection
     vector<size_t> vAllIndices;
@@ -250,8 +251,8 @@ void Initializer::FindHomography(vector<bool> &vbMatchesInliers, float &score, c
         {
             int idx = mvSets[it][j];
 
-            vPn1i[j] = vPn1[mvMatches12[idx].first];
-            vPn2i[j] = vPn2[mvMatches12[idx].second];
+            vPn1i[j] = vPn1[mvGroundMatches12[idx].first];
+            vPn2i[j] = vPn2[mvGroundMatches12[idx].second];
         }
 
         cv::Mat Hn = ComputeH21(vPn1i,vPn2i);
@@ -435,7 +436,8 @@ float Initializer::CheckHomography(const cv::Mat &H21, const cv::Mat &H12, vecto
 
     float score = 0;
 
-    const float th = 5.991;
+    // My revise Origin: 5.991
+    const float th = 5.991 / 3;
 
     const float invSigmaSquare = 1.0/(sigma*sigma);
 
