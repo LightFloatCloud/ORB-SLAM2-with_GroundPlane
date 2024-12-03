@@ -688,6 +688,11 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
         if(vbMatchesInliers[i])
             N++;
 
+string filename = logname_prefix + to_string(lognum) + ".txt";
+// ofstream logfile(filename, ios::app);
+logfile.open(filename, ios::app);
+logfile << "%%%% --------------------------(ReconstructH)" << std::endl;
+
     // We recover 8 motion hypotheses using the method of Faugeras et al.
     // Motion and structure from motion in a piecewise planar environment.
     // International Journal of Pattern Recognition and Artificial Intelligence, 1988
@@ -704,6 +709,11 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
     float d1 = w.at<float>(0);
     float d2 = w.at<float>(1);
     float d3 = w.at<float>(2);
+
+logfile << "s = " << s <<";" << std::endl;
+logfile << "d1 = " << d1 <<";" << std::endl;
+logfile << "d2 = " << d2 <<";" << std::endl;
+logfile << "d3 = " << d3 <<";" << std::endl;
 
     if(d1/d2<1.00001 || d2/d3<1.00001)
     {
@@ -806,10 +816,6 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
         vn.push_back(n);
     }
 
-string filename = logname_prefix + to_string(lognum) + ".txt";
-// ofstream logfile(filename, ios::app);
-logfile.open(filename, ios::app);
-logfile << "%%%% --------------------------(ReconstructH)" << std::endl;
 
     int bestGood = 0;
     int secondBestGood = 0;    
@@ -831,6 +837,7 @@ logfile << "%% nGood, R_i, t_i, P3D_i" << std::endl;
 logfile << "nGood"<< i <<" = " << nGood <<";" << std::endl;
 logfile << "R"<< i <<" = " << vR[i] <<";" << std::endl;
 logfile << "t"<< i <<" = " << vt[i] <<";" << std::endl;
+logfile << "n"<< i <<" = " << vn[i] <<";" << std::endl;
 logfile << "vP3D"<< i <<" = [" <<std::endl;
 for(size_t i = 0; i < vbTriangulatedi.size(); i++)
 {
