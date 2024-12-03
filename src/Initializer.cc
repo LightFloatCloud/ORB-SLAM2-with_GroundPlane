@@ -895,9 +895,12 @@ logfile.close();
     #endif
 
 logfile << "%% best_R, best_t, best_n" << std::endl;
+if(bestSolutionIdx >= 0)
+{
 logfile << "R = " << vR[bestSolutionIdx] <<";" << std::endl;
 logfile << "t = " << vt[bestSolutionIdx] <<";" << std::endl;
 logfile << "n = " << vn[bestSolutionIdx] <<";" << std::endl;
+}
 
 logfile << "%% vP3D, vbTriangulated" << std::endl;
 logfile << "vP3D = [" <<std::endl;
@@ -1078,10 +1081,11 @@ int Initializer::CheckRT(const cv::Mat &R, const cv::Mat &t, const vector<cv::Ke
 
         vCosParallax.push_back(cosParallax);
         vP3D[vMatches12[i].first] = cv::Point3f(p3dC1.at<float>(0),p3dC1.at<float>(1),p3dC1.at<float>(2));
-        nGood++;
 
-        if(cosParallax<0.99998)
+        if(cosParallax<0.99998) {
+            nGood++;
             vbGood[vMatches12[i].first]=true;
+        }
     }
 
     if(nGood>0)
