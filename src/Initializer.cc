@@ -914,6 +914,7 @@ logfile.close();
         return true;
     }
     else {
+        if(!(secondBestGood<mSecGoodFactor*bestGood && vn[bestSolutionIdx].at<float>(1) < 0 && bestParallax>=minParallax && bestGood>minTriangulated && bestGood>0.9*N)) {
         if(secondBestGood >= mSecGoodFactor*bestGood)
             std::cout << "secondBestGood is higher than " << static_cast<int>(mSecGoodFactor*100) << " percent of bestGood. Current: " 
                 << std::fixed << std::setprecision(3) << static_cast<float>(secondBestGood) / bestGood 
@@ -924,6 +925,22 @@ logfile.close();
             std::cout << "bestGood is less than the minimum required triangulated points. bestGood: " << bestGood << std::endl;
         if(bestGood <= 0.9*N)
             std::cout << "bestGood is less than 90% of the total inlier points." << std::endl;
+        if(bestSolutionIdx>=0 && vn[bestSolutionIdx].at<float>(1)) 
+            std::cout << "but most important: n is wrong." << std::endl;
+        }
+        
+        if(secondBestSolutionIdx>=0 && vn[secondBestSolutionIdx].at<float>(1) < 0 && !( secondBestGood > 0.5 * bestGood 
+        && secondBestParallax>=minParallax && secondBestGood>minTriangulated)) {
+        std::cout << "SecondBest has good Ground, but "<< std::endl;
+        if(secondBestGood <= 0.5*bestGood)
+            std::cout << "secondBestGood is lower than 50 percent of bestGood. Current: " 
+                << std::fixed << std::setprecision(3) << static_cast<float>(secondBestGood) / bestGood 
+                << std::endl;
+        if(secondBestParallax < minParallax)
+            std::cout << "secondBestParallax is less than the minimum required parallax. SecondParallax: " << std::setprecision(2) << secondBestParallax << std::endl;
+        if(secondBestGood <= minTriangulated)
+            std::cout << "secondBestGood is less than the minimum required triangulated points. SecondBestGood: " << secondBestGood << std::endl;
+        }
         
     }
 
