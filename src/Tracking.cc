@@ -825,7 +825,7 @@ void Tracking::CreateInitialMapMonocular()
     float invMedianDepth = 1.0f/medianDepth;
 
     // My revise
-    if(medianDepth<0 || pKFcur->TrackedMapPoints(1)<30 || mInitGroundNormal.at<float>(2)==0) // My Revise from <100
+    if(medianDepth<0 || pKFcur->TrackedMapPoints(1)<20 || mInitGroundNormal.at<float>(2)==0) // My Revise from <100
     {
         cout << "Wrong initialization, medianDepth: " << medianDepth << ", TrackedMapPoints: " << pKFcur->TrackedMapPoints(1) << ", reseting..."<< endl;
         Reset();

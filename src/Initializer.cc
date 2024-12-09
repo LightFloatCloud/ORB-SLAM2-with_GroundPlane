@@ -488,7 +488,8 @@ float Initializer::CheckHomography(const cv::Mat &H21, const cv::Mat &H12, vecto
             }
             float err_v = normalize_v - suppose_v;
             if(err_v <= 1)
-                matchFactor = 1 - 0.7 * suppose_v;
+                matchFactor = 0.1;
+                // matchFactor = 1 - 0.7 * suppose_v;
         }
 
         score_thisloop *= matchFactor;
@@ -857,7 +858,7 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
         }
     }
 
-
+const float secondFactor = 0.35;
     if(secondBestGood<mSecGoodFactor*bestGood && vn[bestSolutionIdx].at<float>(1) < 0 && bestParallax>=minParallax && bestGood>minTriangulated && bestGood>0.9*N)
     {   // 最好允许 mSecGoodFactor 大一些，大于0.7
         vR[bestSolutionIdx].copyTo(R21);
@@ -877,7 +878,7 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
 
         return true;
     }
-    else if(secondBestSolutionIdx>=0 && vn[secondBestSolutionIdx].at<float>(1) < 0 && secondBestGood > 0.5 * bestGood 
+    else if(secondBestSolutionIdx>=0 && vn[secondBestSolutionIdx].at<float>(1) < 0 && secondBestGood > secondFactor * bestGood 
         && secondBestParallax>=minParallax && secondBestGood>minTriangulated)
     {
         vR[secondBestSolutionIdx].copyTo(R21);
@@ -909,11 +910,11 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
             std::cout << "but most important: n is wrong." << std::endl;
         }
         
-        if(secondBestSolutionIdx>=0 && vn[secondBestSolutionIdx].at<float>(1) < 0 && !( secondBestGood > 0.5 * bestGood 
+        if(secondBestSolutionIdx>=0 && vn[secondBestSolutionIdx].at<float>(1) < 0 && !( secondBestGood > secondFactor * bestGood 
         && secondBestParallax>=minParallax && secondBestGood>minTriangulated)) {
         std::cout << "SecondBest has good Ground, but "<< std::endl;
-        if(secondBestGood <= 0.5*bestGood)
-            std::cout << "secondBestGood is lower than 50 percent of bestGood. Current: " 
+        if(secondBestGood <= secondFactor*bestGood)
+            std::cout << "secondBestGood is lower than "<<(int)(100*secondFactor)<<" percent of bestGood. Current: " 
                 << std::fixed << std::setprecision(3) << static_cast<float>(secondBestGood) / bestGood 
                 << std::endl;
         if(secondBestParallax < minParallax)
