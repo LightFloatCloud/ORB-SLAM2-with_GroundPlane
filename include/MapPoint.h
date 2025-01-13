@@ -100,7 +100,7 @@ public:
 
     // My revise 是否地面点
     bool mbGround;
-    bool UpdateGroundState(const cv::Mat &GroundNormal, const float &GroundThres);
+    bool UpdateGroundState(const cv::Mat &GroundNormal, const float &GroundThres, bool bUpdateRecent = true);
 
     
 

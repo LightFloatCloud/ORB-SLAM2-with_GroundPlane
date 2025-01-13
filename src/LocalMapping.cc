@@ -151,7 +151,7 @@ void LocalMapping::ProcessNewKeyFrame()
                 {
                     pMP->AddObservation(mpCurrentKeyFrame, i);
 
-                    // My revise 判断是否平面点
+                    // My revise 当前帧看到的历史帧建立的点，判断是否平面点
                     pMP->UpdateGroundState(mpMap->mvGroundPlaneNormal, mpMap->mGroundThres);
 
                     pMP->UpdateNormalAndDepth();
@@ -438,9 +438,7 @@ void LocalMapping::CreateNewMapPoints()
             // Triangulation is succesfull
             MapPoint* pMP = new MapPoint(x3D,mpCurrentKeyFrame,mpMap);
 
-            // My revise 判断是否平面点
-            pMP->UpdateGroundState(mpMap->mvGroundPlaneNormal, mpMap->mGroundThres);
-
+            
 
 
 
@@ -453,6 +451,9 @@ void LocalMapping::CreateNewMapPoints()
             pMP->ComputeDistinctiveDescriptors();
 
             pMP->UpdateNormalAndDepth();
+            // My revise 三角化出新的点，判断是否平面点
+            pMP->UpdateGroundState(mpMap->mvGroundPlaneNormal, mpMap->mGroundThres);
+
 
             mpMap->AddMapPoint(pMP);
             mlpRecentAddedMapPoints.push_back(pMP);
@@ -536,6 +537,8 @@ void LocalMapping::SearchInNeighbors()
             {
                 pMP->ComputeDistinctiveDescriptors();
                 pMP->UpdateNormalAndDepth();
+                // My revise 融合当前关键帧与相邻帧重复的地图点
+                pMP->UpdateGroundState(mpMap->mvGroundPlaneNormal, mpMap->mGroundThres);
             }
         }
     }

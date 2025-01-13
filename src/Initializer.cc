@@ -86,10 +86,16 @@ bool Initializer::Initialize(const Frame &CurrentFrame, const vector<int> &vMatc
     mvMatches12.clear();
     mvMatches12.reserve(mvKeys2.size());
     mvbMatched1.resize(mvKeys1.size());
+    mvGroundMatches12.clear();
+    mvGroundMatches12.reserve(mvKeys2.size());
     for(size_t i=0, iend=vMatches12.size();i<iend; i++)
     {
         if(vMatches12[i]>=0)
         {
+            mvMatches12.push_back(make_pair(i,vMatches12[i]));
+            mvbMatched1[i]=true;
+
+
             // my revise 添加点的位置限制
             cv::Point2f P1 = mvKeys1[i].pt;
             cv::Point2f P2 = mvKeys2[vMatches12[i]].pt;
@@ -108,19 +114,14 @@ bool Initializer::Initialize(const Frame &CurrentFrame, const vector<int> &vMatc
             bool bP1 = isValidPoint(P1);
             bool bP2 = isValidPoint(P2);
             if(bP1 && bP2) {
-            // 原程序
-            mvMatches12.push_back(make_pair(i,vMatches12[i]));
-            mvbMatched1[i]=true;
-            }
-            else {
-                mvbMatched1[i]=false;
+                mvGroundMatches12.push_back(make_pair(i,vMatches12[i]));
             }
         }
         else
             mvbMatched1[i]=false;
     }
 
-    const int N = mvMatches12.size();
+    const int N = mvGroundMatches12.size();
 
     // Indices for minimum set selection
     vector<size_t> vAllIndices;
@@ -227,8 +228,8 @@ void Initializer::FindHomography(vector<bool> &vbMatchesInliers, float &score, c
         {
             int idx = mvSets[it][j];
 
-            vPn1i[j] = vPn1[mvMatches12[idx].first];
-            vPn2i[j] = vPn2[mvMatches12[idx].second];
+            vPn1i[j] = vPn1[mvGroundMatches12[idx].first];
+            vPn2i[j] = vPn2[mvGroundMatches12[idx].second];
         }
 
         cv::Mat Hn = ComputeH21(vPn1i,vPn2i);
@@ -244,6 +245,7 @@ void Initializer::FindHomography(vector<bool> &vbMatchesInliers, float &score, c
             score = currentScore;
         }
     }
+cout << "-- score: " << score << endl;
 
     #ifdef SHOW_TIMECOST
     auto end_time = std::chrono::high_resolution_clock::now();
@@ -412,7 +414,8 @@ float Initializer::CheckHomography(const cv::Mat &H21, const cv::Mat &H12, vecto
 
     float score = 0;
 
-    const float th = 5.991;
+    // My revise Origin: 5.991
+    const float th = 5.991 / 3;
 
     const float invSigmaSquare = 1.0/(sigma*sigma);
 
@@ -431,6 +434,9 @@ float Initializer::CheckHomography(const cv::Mat &H21, const cv::Mat &H12, vecto
         // Reprojection error in first image
         // x2in1 = H12*x2
 
+        // My revise  给中间偏下的点加权
+        float score_thisloop = 0;
+
         const float w2in1inv = 1.0/(h31inv*u2+h32inv*v2+h33inv);
         const float u2in1 = (h11inv*u2+h12inv*v2+h13inv)*w2in1inv;
         const float v2in1 = (h21inv*u2+h22inv*v2+h23inv)*w2in1inv;
@@ -442,7 +448,7 @@ float Initializer::CheckHomography(const cv::Mat &H21, const cv::Mat &H12, vecto
         if(chiSquare1>th)
             bIn = false;
         else
-            score += th - chiSquare1;
+            score_thisloop += th - chiSquare1;
 
         // Reprojection error in second image
         // x1in2 = H21*x1
@@ -458,14 +464,36 @@ float Initializer::CheckHomography(const cv::Mat &H21, const cv::Mat &H12, vecto
         if(chiSquare2>th)
             bIn = false;
         else
-            score += th - chiSquare2;
+            score_thisloop += th - chiSquare2;
 
         if(bIn)
             vbMatchesInliers[i]=true;
         else
             vbMatchesInliers[i]=false;
-    }
 
+        // My revise 给中间偏下的点加权
+        float normalize_u = (u2 * 4 / mImageWidth - 2);
+        float normalize_v = (3 - v2 * 3 / mImageHeight);
+        float matchFactor = 0.1;
+        if(normalize_u + normalize_v <= 2 && normalize_u - normalize_v >= -2) {
+            matchFactor = 1;
+        }
+        else {
+            float suppose_v = 0;
+            if(normalize_u < 0) {
+                suppose_v = normalize_u + 2;
+            }
+            else {
+                suppose_v = 2 - normalize_u;
+            }
+            float err_v = normalize_v - suppose_v;
+            if(err_v <= 1)
+                matchFactor = 1 - 0.7 * suppose_v;
+        }
+
+        score_thisloop *= matchFactor;
+        score += score_thisloop;
+    }
     return score;
 }
 
@@ -788,6 +816,11 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
     float bestParallax = -1;
     vector<cv::Point3f> bestP3D;
     vector<bool> bestTriangulated;
+    // My revise 添加second优选判断
+    int secondBestSolutionIdx = -1;
+    float secondBestParallax = -1;
+    vector<cv::Point3f> secondBestP3D;
+    vector<bool> secondBestTriangulated;
 
     // Instead of applying the visibility constraints proposed in the Faugeras' paper (which could fail for points seen with low parallax)
     // We reconstruct all hypotheses and check in terms of triangulated points and parallax
@@ -801,6 +834,11 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
         if(nGood>bestGood)
         {
             secondBestGood = bestGood;
+            secondBestSolutionIdx = bestSolutionIdx;
+            secondBestParallax = bestParallax;
+            secondBestP3D = bestP3D;
+            secondBestTriangulated = bestTriangulated;
+            // secondBestGood = bestGood;
             bestGood = nGood;
             bestSolutionIdx = i;
             bestParallax = parallaxi;
@@ -809,13 +847,19 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
         }
         else if(nGood>secondBestGood)
         {
+            // secondBestGood = nGood;
+            // Update second best
             secondBestGood = nGood;
+            secondBestSolutionIdx = i;
+            secondBestParallax = parallaxi;
+            secondBestP3D = vP3Di;
+            secondBestTriangulated = vbTriangulatedi;
         }
     }
 
 
-    if(secondBestGood<mSecGoodFactor*bestGood && bestParallax>=minParallax && bestGood>minTriangulated && bestGood>0.9*N)
-    {
+    if(secondBestGood<mSecGoodFactor*bestGood && vn[bestSolutionIdx].at<float>(1) < 0 && bestParallax>=minParallax && bestGood>minTriangulated && bestGood>0.9*N)
+    {   // 最好允许 mSecGoodFactor 大一些，大于0.7
         vR[bestSolutionIdx].copyTo(R21);
         vt[bestSolutionIdx].copyTo(t21);
 
@@ -825,7 +869,7 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
         vP3D = bestP3D;
         vbTriangulated = bestTriangulated;
 
-        std::cout << "secondBestGood: " 
+        std::cout << "secondBestGood Rate: " 
                 << std::fixed << std::setprecision(3) << static_cast<float>(secondBestGood) / bestGood 
                 << ", bestParallax: " << std::setprecision(2) << bestParallax
                 << ", bestGood: " << bestGood 
@@ -833,7 +877,24 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
 
         return true;
     }
+    else if(secondBestSolutionIdx>=0 && vn[secondBestSolutionIdx].at<float>(1) < 0 && secondBestGood > 0.5 * bestGood 
+        && secondBestParallax>=minParallax && secondBestGood>minTriangulated)
+    {
+        vR[secondBestSolutionIdx].copyTo(R21);
+        vt[secondBestSolutionIdx].copyTo(t21);
+        vn[secondBestSolutionIdx].copyTo(n1);
+        vP3D = secondBestP3D;
+        vbTriangulated = secondBestTriangulated;
+        std::cout << "Best Ground is bad, secondBestGood Rate: " 
+                << std::fixed << std::setprecision(3) << static_cast<float>(secondBestGood) / bestGood 
+                << ", secondBestParallax: " << std::setprecision(2) << secondBestParallax
+                << ", secondBestGood: " << secondBestGood 
+                << std::endl;
+                
+        return true;
+    }
     else {
+        if(!(secondBestGood<mSecGoodFactor*bestGood && vn[bestSolutionIdx].at<float>(1) < 0 && bestParallax>=minParallax && bestGood>minTriangulated && bestGood>0.9*N)) {
         if(secondBestGood >= mSecGoodFactor*bestGood)
             std::cout << "secondBestGood is higher than " << static_cast<int>(mSecGoodFactor*100) << " percent of bestGood. Current: " 
                 << std::fixed << std::setprecision(3) << static_cast<float>(secondBestGood) / bestGood 
@@ -841,9 +902,25 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
         if(bestParallax < minParallax)
             std::cout << "bestParallax is less than the minimum required parallax. Parallax: " << std::setprecision(2) << bestParallax << std::endl;
         if(bestGood <= minTriangulated)
-            std::cout << "bestGood is less than the minimum required triangulated points. bestGood: " << bestGood << std::endl;
+            std::cout << "bestGood is less than the minimum "<< minTriangulated <<" required triangulated points. bestGood: " << bestGood << std::endl;
         if(bestGood <= 0.9*N)
             std::cout << "bestGood is less than 90% of the total inlier points." << std::endl;
+        if(bestSolutionIdx>=0 && vn[bestSolutionIdx].at<float>(1)) 
+            std::cout << "but most important: n is wrong." << std::endl;
+        }
+        
+        if(secondBestSolutionIdx>=0 && vn[secondBestSolutionIdx].at<float>(1) < 0 && !( secondBestGood > 0.5 * bestGood 
+        && secondBestParallax>=minParallax && secondBestGood>minTriangulated)) {
+        std::cout << "SecondBest has good Ground, but "<< std::endl;
+        if(secondBestGood <= 0.5*bestGood)
+            std::cout << "secondBestGood is lower than 50 percent of bestGood. Current: " 
+                << std::fixed << std::setprecision(3) << static_cast<float>(secondBestGood) / bestGood 
+                << std::endl;
+        if(secondBestParallax < minParallax)
+            std::cout << "secondBestParallax is less than the minimum required parallax. SecondParallax: " << std::setprecision(2) << secondBestParallax << std::endl;
+        if(secondBestGood <= minTriangulated)
+            std::cout << "secondBestGood is less than the minimum required triangulated points. SecondBestGood: " << secondBestGood << std::endl;
+        }
         
     }
 
@@ -1012,10 +1089,13 @@ int Initializer::CheckRT(const cv::Mat &R, const cv::Mat &t, const vector<cv::Ke
 
         vCosParallax.push_back(cosParallax);
         vP3D[vMatches12[i].first] = cv::Point3f(p3dC1.at<float>(0),p3dC1.at<float>(1),p3dC1.at<float>(2));
-        nGood++;
+        
 
-        if(cosParallax<0.99998)
+        if(cosParallax<0.99998) 
+        {
+            nGood++;
             vbGood[vMatches12[i].first]=true;
+        }
     }
 
     if(nGood>0)

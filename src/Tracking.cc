@@ -153,6 +153,11 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
             mDepthMapFactor = 1.0f/mDepthMapFactor;
     }
 
+
+    // My revise 
+    pMap->mGroundThres = fSettings["Map.Ground_threshold"];
+    cout << endl << "Ground Threshold: " << pMap->mGroundThres << endl;
+    pMap->mRecentGroundPointsNum = 2000;
 }
 
 void Tracking::SetLocalMapper(LocalMapping *pLocalMapper)
@@ -772,6 +777,9 @@ void Tracking::CreateInitialMapMonocular()
             //cout << "Ground Point: " << pMP->GetWorldPos() << endl;
             // My revise 添加地面点
             mpMap->mspGroundPoints.insert(pMP);
+            mpMap->mRecentGroundPoints.push_back(pMP);
+            mpMap->mRecentGroundPointsMap[pMP] = std::prev(mpMap->mRecentGroundPoints.end());
+
         }
         #ifdef SHOW_TIMECOST
         auto end_time = std::chrono::high_resolution_clock::now();
@@ -1433,7 +1441,7 @@ void Tracking::UpdateLocalKeyFrames()
                 {
                     mvpLocalKeyFrames.push_back(pNeighKF);
                     pNeighKF->mnTrackReferenceForFrame=mCurrentFrame.mnId;
-                    break;
+                    break;  //? 找到一个就直接跳出for循环? TODO fix bug
                 }
             }
         }
@@ -1460,7 +1468,7 @@ void Tracking::UpdateLocalKeyFrames()
             {
                 mvpLocalKeyFrames.push_back(pParent);
                 pParent->mnTrackReferenceForFrame=mCurrentFrame.mnId;
-                break;
+                break;  //! 感觉是个bug！如果找到父关键帧会直接跳出整个循环 fix bug TODO
             }
         }
 

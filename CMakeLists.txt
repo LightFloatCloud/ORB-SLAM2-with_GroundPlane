@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 project(ORB_SLAM2)
+# Ignore deprecated warnings
+add_compile_options(-Wno-deprecated-declarations)
 
 IF(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE Release)

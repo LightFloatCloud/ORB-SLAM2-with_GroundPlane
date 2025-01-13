@@ -27,8 +27,8 @@ namespace ORB_SLAM2
 
 Map::Map():mnMaxKFid(0),mnBigChangeIdx(0),mvGroundPlaneNormal(3,1,CV_32F)
 {
-    cv::FileStorage fSettings("/root/catkin_ws/src/orbslam-ros/launch/Redmi_logger_480.yaml", cv::FileStorage::READ);
-    mGroundThres = fSettings["Map.Ground_threshold"];
+    // cv::FileStorage fSettings("/root/catkin_ws/src/orbslam-ros/launch/Redmi_logger_480.yaml", cv::FileStorage::READ);
+    // mGroundThres = fSettings["Map.Ground_threshold"];
 
 }
 
@@ -56,6 +56,16 @@ void Map::EraseMapPoint(MapPoint *pMP)
     
     // My revise 删除地面点
     mspGroundPoints.erase(pMP);
+    if(pMP->mbGround) { // 之前是地面点
+        auto it = mRecentGroundPointsMap.find(pMP);
+        if (it != mRecentGroundPointsMap.end())
+        {
+            // 如果点已经在集合中，则将其从队列和Map中删除
+            mRecentGroundPoints.erase(it->second);
+            mRecentGroundPointsMap.erase(it);
+        } 
+        pMP->mbGround = false;
+    }
 }
 
 void Map::EraseKeyFrame(KeyFrame *pKF)
@@ -135,6 +145,12 @@ void Map::clear()
     mnMaxKFid = 0;
     mvpReferenceMapPoints.clear();
     mvpKeyFrameOrigins.clear();
+
+    // My revise 清除地面点
+    mspGroundPoints.clear();
+    mRecentGroundPoints.clear();
+    mRecentGroundPointsMap.clear();
+
 }
 
 } //namespace ORB_SLAM

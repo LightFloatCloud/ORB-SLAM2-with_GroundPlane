@@ -936,7 +936,7 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
 #ifdef SHOW_TIMECOST
         auto start_time = std::chrono::high_resolution_clock::now();
 #endif
-        pMP->UpdateGroundState(pMap->mvGroundPlaneNormal, pMap->mGroundThres);
+        pMP->UpdateGroundState(pMap->mvGroundPlaneNormal, pMap->mGroundThres, false);
 #ifdef SHOW_TIMECOST
         auto end_time = std::chrono::high_resolution_clock::now();
         duration += end_time - start_time;
@@ -957,29 +957,21 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
     // 如果有外部请求停止,那么就不在进行第二阶段的优化
     if(bDoMore)
     {
-        vector<MapPoint*> vpGroundPoints;
-        for(list<MapPoint*>::iterator lit=lLocalMapPoints.begin(), lend=lLocalMapPoints.end(); lit!=lend; lit++)
-        {
-            MapPoint* pMP = *lit;
-
-            if(pMP->mbGround) {
-                vpGroundPoints.push_back(pMP);
-            }
-
-            
-
-        }
-        int n = vpGroundPoints.size();
-        
+        int n = pMap->mRecentGroundPoints.size();
+        std::cout << "-- GroundPoints in BA: " << n << "." << std::endl;
+        // std::cout << "-- RecentGroundPointsNum: " << pMap->mRecentGroundPointsNum << "." << std::endl;
         if(n > 4)
         {
             cv::Mat b = -cv::Mat::ones(n, 1, CV_32F);;
             cv::Mat A(n,3,CV_32F);
-            for (int i = 0; i < n; ++i) {
-                cv::Mat pos = vpGroundPoints[i]->GetWorldPos();
+            int i = 0;
+            for (auto& point : pMap->mRecentGroundPoints)
+            {
+                cv::Mat pos = point->GetWorldPos();
                 A.at<float>(i, 0) = pos.at<float>(0,0); // x坐标
                 A.at<float>(i, 1) = pos.at<float>(1,0); // y坐标
                 A.at<float>(i, 2) = pos.at<float>(2,0); // z坐标
+                ++i;
             }
 
             // 解最小二乘问题
@@ -1265,6 +1257,8 @@ void Optimizer::OptimizeEssentialGraph(Map* pMap, KeyFrame* pLoopKF, KeyFrame* p
         pMP->SetWorldPos(cvCorrectedP3Dw);
 
         pMP->UpdateNormalAndDepth();
+        // My revise
+        pMP->UpdateGroundState(pMap->mvGroundPlaneNormal, pMap->mGroundThres);
     }
 }
 
