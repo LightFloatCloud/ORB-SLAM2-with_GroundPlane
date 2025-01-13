@@ -100,7 +100,7 @@ public:
         double distance = planeEstimate.dot(pointEstimate) + 1.0;
 
         // 计算残差
-        _error(0) = distance / planeEstimate.norm();
+        _error(0) = distance / planeEstimate.norm(); 
     }
 
     virtual void linearizeOplus() { 
@@ -772,7 +772,7 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
 
                     ePlane->setMeasurement(obs);
                     const float &invSigma2 = pKFi->mvInvLevelSigma2[kpUn.octave];
-                    ePlane->setInformation(Eigen::Matrix<double, 1, 1>::Identity()*invSigma2*100);
+                    ePlane->setInformation(Eigen::Matrix<double, 1, 1>::Identity()*invSigma2*1000);
 
                     g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
                     ePlane->setRobustKernel(rk);
@@ -787,12 +787,65 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
         }
     }
 
+    // 优化前计算地面点的 RMSE
+    double preRMSE = 0.0;
+    int groundPointCount = 0;
+
+    for (auto& pMP : lLocalMapPoints) {
+        if (pMP->mbGround && !pMP->isBad()) {
+            cv::Mat pointPos = pMP->GetWorldPos();
+            double distance = pMap->mvGroundPlaneNormal.at<float>(0) * pointPos.at<float>(0) +
+                            pMap->mvGroundPlaneNormal.at<float>(1) * pointPos.at<float>(1) +
+                            pMap->mvGroundPlaneNormal.at<float>(2) * pointPos.at<float>(2) + 1.0;
+            double norm = sqrt(pMap->mvGroundPlaneNormal.at<float>(0) * pMap->mvGroundPlaneNormal.at<float>(0) +
+                            pMap->mvGroundPlaneNormal.at<float>(1) * pMap->mvGroundPlaneNormal.at<float>(1) +
+                            pMap->mvGroundPlaneNormal.at<float>(2) * pMap->mvGroundPlaneNormal.at<float>(2));
+            distance = fabs(distance) / norm; // 点到平面的距离
+            preRMSE += distance * distance;
+            groundPointCount++;
+        }
+    }
+    if (groundPointCount > 0) {
+        preRMSE = sqrt(preRMSE / groundPointCount);
+        std::cout << "-- Pre-optimization ground point RMSE: " << std::fixed << std::setprecision(6) << preRMSE << std::endl;
+    }
+    // 完成第一次RMSE计算
+
     if(pbStopFlag)
         if(*pbStopFlag)
             return;
 
     optimizer.initializeOptimization();
     optimizer.optimize(5);
+
+    // 优化后计算地面点的 RMSE
+    double postRMSE = 0.0;
+    groundPointCount = 0;
+
+    for (auto& pMP : lLocalMapPoints) {
+        if (pMP->mbGround && !pMP->isBad()) {
+            // 直接从优化器中获取地图点的顶点值
+            g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(pMP->mnId + maxKFid + 1));
+            if (vPoint) {
+                Eigen::Vector3d pointPos = vPoint->estimate(); // 获取优化后的地图点坐标
+                double distance = pMap->mvGroundPlaneNormal.at<float>(0) * pointPos(0) +
+                                pMap->mvGroundPlaneNormal.at<float>(1) * pointPos(1) +
+                                pMap->mvGroundPlaneNormal.at<float>(2) * pointPos(2) + 1.0;
+                double norm = sqrt(pMap->mvGroundPlaneNormal.at<float>(0) * pMap->mvGroundPlaneNormal.at<float>(0) +
+                                pMap->mvGroundPlaneNormal.at<float>(1) * pMap->mvGroundPlaneNormal.at<float>(1) +
+                                pMap->mvGroundPlaneNormal.at<float>(2) * pMap->mvGroundPlaneNormal.at<float>(2));
+                distance = fabs(distance) / norm; // 点到平面的距离
+                postRMSE += distance * distance;
+                groundPointCount++;
+            }
+        }
+    }
+
+    if (groundPointCount > 0) {
+        postRMSE = sqrt(postRMSE / groundPointCount);
+        std::cout << "-- Post-optimization ground point RMSE: " << std::fixed << std::setprecision(6) << postRMSE << std::endl;
+    }
+    // 完成第二次RMSE计算
 
     bool bDoMore= true;
 
@@ -857,6 +910,38 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
 
     optimizer.initializeOptimization(0);
     optimizer.optimize(10);
+
+    // 再次优化后计算地面点的 RMSE
+    double lastRMSE = 0.0;
+    groundPointCount = 0;
+
+    for (size_t i = 0, iend = vpEdgesGround.size(); i < iend; i++) {
+        g2o::EdgePlaneXYZ* e = vpEdgesGround[i];
+        MapPoint* pMP = vpMapPointEdgeGround[i];
+
+        if (pMP->mbGround && !pMP->isBad()       && e->level() != 1) {
+            // 直接获取边的顶点
+            // g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(pMP->mnId + maxKFid + 1));
+            g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(e->vertex(0));
+            if (vPoint) {
+                Eigen::Vector3d pointPos = vPoint->estimate(); // 获取优化后的地图点坐标
+                double distance = pMap->mvGroundPlaneNormal.at<float>(0) * pointPos(0) +
+                                pMap->mvGroundPlaneNormal.at<float>(1) * pointPos(1) +
+                                pMap->mvGroundPlaneNormal.at<float>(2) * pointPos(2) + 1.0;
+                double norm = sqrt(pMap->mvGroundPlaneNormal.at<float>(0) * pMap->mvGroundPlaneNormal.at<float>(0) +
+                                pMap->mvGroundPlaneNormal.at<float>(1) * pMap->mvGroundPlaneNormal.at<float>(1) +
+                                pMap->mvGroundPlaneNormal.at<float>(2) * pMap->mvGroundPlaneNormal.at<float>(2));
+                distance = fabs(distance) / norm; // 点到平面的距离
+                lastRMSE += distance * distance;
+                groundPointCount++;
+            }
+        }
+    }
+    if (groundPointCount > 0) {
+        lastRMSE = sqrt(lastRMSE / groundPointCount);
+        std::cout << "-- Last-optimization ground point RMSE: " << std::fixed << std::setprecision(6) << lastRMSE << std::endl;
+    }
+    // 完成第三次RMSE计算
 
     }
 
