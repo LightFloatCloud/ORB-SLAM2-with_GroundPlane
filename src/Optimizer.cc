@@ -889,6 +889,7 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
         e->setRobustKernel(0);
     }
     // My revise 增添地面相关的 
+    int nBadGround = 0;
     for(size_t i=0, iend=vpEdgesGround.size(); i<iend;i++)
     {
         g2o::EdgePlaneXYZ* e = vpEdgesGround[i];
@@ -900,8 +901,12 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
         if(e->chi2()>3.841)
         {
             e->setLevel(1);
+            nBadGround++;
         }
         e->setRobustKernel(0);
+    }
+    if (nBadGround > 0) {
+        std::cout << "  -- Ground outliers: " << nBadGround << std::endl;
     }
 
 
@@ -915,14 +920,33 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
     double lastRMSE = 0.0;
     groundPointCount = 0;
 
-    for (size_t i = 0, iend = vpEdgesGround.size(); i < iend; i++) {
+    /*for (size_t i = 0, iend = vpEdgesGround.size(); i < iend; i++) {
         g2o::EdgePlaneXYZ* e = vpEdgesGround[i];
         MapPoint* pMP = vpMapPointEdgeGround[i];
 
-        if (pMP->mbGround && !pMP->isBad()       && e->level() != 1) {
+        if (pMP->mbGround && !pMP->isBad()       ) { // && e->level() != 1
             // 直接获取边的顶点
             // g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(pMP->mnId + maxKFid + 1));
             g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(e->vertex(0));
+            if (vPoint) {
+                Eigen::Vector3d pointPos = vPoint->estimate(); // 获取优化后的地图点坐标
+                double distance = pMap->mvGroundPlaneNormal.at<float>(0) * pointPos(0) +
+                                pMap->mvGroundPlaneNormal.at<float>(1) * pointPos(1) +
+                                pMap->mvGroundPlaneNormal.at<float>(2) * pointPos(2) + 1.0;
+                double norm = sqrt(pMap->mvGroundPlaneNormal.at<float>(0) * pMap->mvGroundPlaneNormal.at<float>(0) +
+                                pMap->mvGroundPlaneNormal.at<float>(1) * pMap->mvGroundPlaneNormal.at<float>(1) +
+                                pMap->mvGroundPlaneNormal.at<float>(2) * pMap->mvGroundPlaneNormal.at<float>(2));
+                distance = fabs(distance) / norm; // 点到平面的距离
+                lastRMSE += distance * distance;
+                groundPointCount++;
+            }
+        }
+    }*/
+    
+    for (auto& pMP : lLocalMapPoints) {
+        if (pMP->mbGround && !pMP->isBad()) {
+            // 直接从优化器中获取地图点的顶点值
+            g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(pMP->mnId + maxKFid + 1));
             if (vPoint) {
                 Eigen::Vector3d pointPos = vPoint->estimate(); // 获取优化后的地图点坐标
                 double distance = pMap->mvGroundPlaneNormal.at<float>(0) * pointPos(0) +
