@@ -44,7 +44,7 @@ public:
                     cv::Mat &R21, cv::Mat &t21, vector<cv::Point3f> &vP3D, vector<bool> &vbTriangulated        , cv::Mat &n1,  vector<bool> &vbProbableGround);
 
 
-private:
+public:
 
     void FindHomography(vector<bool> &vbMatchesInliers, float &score, cv::Mat &H21);
     void FindFundamental(vector<bool> &vbInliers, float &score, cv::Mat &F21);

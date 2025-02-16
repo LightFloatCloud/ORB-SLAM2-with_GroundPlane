@@ -772,7 +772,7 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
 
                     ePlane->setMeasurement(obs);
                     const float &invSigma2 = pKFi->mvInvLevelSigma2[kpUn.octave];
-                    ePlane->setInformation(Eigen::Matrix<double, 1, 1>::Identity()*invSigma2*1000);
+                    ePlane->setInformation(Eigen::Matrix<double, 1, 1>::Identity()*invSigma2*100);
 
                     g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
                     ePlane->setRobustKernel(rk);

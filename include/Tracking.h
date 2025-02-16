@@ -107,6 +107,8 @@ public:
     cv::Mat mInitGroundNormal;
     // My revise 添加配置文件目录
     string mSettingPath;
+    // Initalization (only for monocular)
+    Initializer* mpInitializer;
 
     Frame mInitialFrame;
 
@@ -169,8 +171,6 @@ protected:
     ORBVocabulary* mpORBVocabulary;
     KeyFrameDatabase* mpKeyFrameDB;
 
-    // Initalization (only for monocular)
-    Initializer* mpInitializer;
 
     //Local Map
     KeyFrame* mpReferenceKF;

@@ -44,6 +44,8 @@ cv::Mat FrameDrawer::DrawFrame()
     vector<bool> vbVO, vbMap, vbGround; // Tracked MapPoints in current frame  // My revise 添加变量
     int state; // Tracking state
 
+    vector<pair<int,int>> vGroundMatches12;
+
     //Copy variables within scoped mutex
     {
         unique_lock<mutex> lock(mMutex);
@@ -58,6 +60,9 @@ cv::Mat FrameDrawer::DrawFrame()
             vCurrentKeys = mvCurrentKeys;
             vIniKeys = mvIniKeys;
             vMatches = mvIniMatches;
+            // vCurrentKeys = pTracker->mpInitializer->mvKeys2;
+            // vIniKeys = pTracker->mpInitializer->mvKeys1;
+            vGroundMatches12 = mvGroundMatches12;
         }
         else if(mState==Tracking::OK)
         {
@@ -78,14 +83,19 @@ cv::Mat FrameDrawer::DrawFrame()
     //Draw
     if(state==Tracking::NOT_INITIALIZED) //INITIALIZING
     {
-        for(unsigned int i=0; i<vMatches.size(); i++)
-        {
-            if(vMatches[i]>=0)
-            {
-                cv::line(im,vIniKeys[i].pt,vCurrentKeys[vMatches[i]].pt,
-                        cv::Scalar(0,255,0));
+        // for(unsigned int i=0; i<vMatches.size(); i++)
+        // {
+        //     if(vMatches[i]>=0)
+        //     {
+        //         cv::line(im,vIniKeys[i].pt,vCurrentKeys[vMatches[i]].pt,
+        //                 cv::Scalar(0,255,0));
+        //     }
+        // }        
+        for(const auto& [i, j] : vGroundMatches12) {
+            if(j >= 0) {
+                cv::line(im, vIniKeys[i].pt, vCurrentKeys[j].pt, cv::Scalar(0, 255, 0));
             }
-        }        
+        }
     }
     else if(state==Tracking::OK) //TRACKING
     {
@@ -197,6 +207,12 @@ void FrameDrawer::Update(Tracking *pTracker)
     {
         mvIniKeys=pTracker->mInitialFrame.mvKeys;
         mvIniMatches=pTracker->mvIniMatches;
+
+        if(pTracker->mpInitializer) {
+            mvCurrentKeys = pTracker->mpInitializer->mvKeys2;
+            mvIniKeys = pTracker->mpInitializer->mvKeys1;
+            mvGroundMatches12 = pTracker->mpInitializer->mvGroundMatches12;
+        }
     }
     else if(pTracker->mLastProcessedState==Tracking::OK)
     {

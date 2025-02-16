@@ -61,6 +61,8 @@ protected:
     int mnTracked, mnTrackedVO;
     vector<cv::KeyPoint> mvIniKeys;
     vector<int> mvIniMatches;
+    // My revise
+    vector<pair<int,int>> mvGroundMatches12;
     int mState;
 
     Map* mpMap;
